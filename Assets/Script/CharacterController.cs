@@ -131,7 +131,7 @@ public class CharacterController : UserData
             t = t.parent;
         }
 
-        // Not interactive — let the click pass through
+        // Not interactive ï¿½ let the click pass through
         return false;
     }
 
@@ -165,7 +165,7 @@ public class CharacterController : UserData
             if (m is ISubmitHandler) return true;
         }
 
-        // Do NOT treat plain Graphics or CanvasGroups as blocking here — that was too aggressive.
+        // Do NOT treat plain Graphics or CanvasGroups as blocking here ï¿½ that was too aggressive.
         // Plain decorative images/text should not prevent gameplay clicks.
 
         return false;
@@ -419,7 +419,8 @@ public class CharacterController : UserData
             // Animation: only play walking when movement is meaningful or local player is dragging
             if (this.characterAnimation == null) return;
 
-            bool remoteShouldWalk = (!IsLocalPlayer && this.distance > minMoveThreshold);
+            const float remoteMoveThreshold = 10f;
+            bool remoteShouldWalk = (!IsLocalPlayer && this.distance > remoteMoveThreshold);
             bool localShouldWalk = (IsLocalPlayer && isMouseDown && this.isMoving);
             bool shouldWalk = remoteShouldWalk || localShouldWalk;
 

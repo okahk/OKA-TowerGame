@@ -74,6 +74,7 @@ public class WS_Client : MonoBehaviour
     public delegate void OrderChangedHandler(string newOrder);
     public event OrderChangedHandler OnOrderChanged;
     private string overrideWebsocketBaseUrl = null;
+    private static string cachedDomainName;
 
     // Event invoked when server startCountDown changes
     public event Action<int> OnStartCountDownChanged;
@@ -283,15 +284,15 @@ public class WS_Client : MonoBehaviour
     {
         get
         {
+            if (!string.IsNullOrEmpty(cachedDomainName)) return cachedDomainName;
 #if UNITY_EDITOR
-            return "dev";
+            cachedDomainName = "dev";
 #else
             string absoluteUrl = Application.absoluteURL;
             Uri url = new Uri(absoluteUrl);
-            // if (LogController.Instance != null) LogController.Instance.debug("Host Name:" + url.Host);
-            Debug.Log("Host : " + url.Host);
-            return url.Host;
+            cachedDomainName = url.Host;
 #endif
+            return cachedDomainName;
         }
     }
 
@@ -447,6 +448,14 @@ public class WS_Client : MonoBehaviour
 
                 // 将JSON字符串反序列化为对象
                 WebSocketMessage message = JsonUtility.FromJson<WebSocketMessage>(jsonString);
+
+                string receivedOrder = message.content?.order;
+                Debug.Log("Received order: " + receivedOrder + " | messageType: " + message.messageType + " | roomId: " + message.roomId);
+                if (receivedOrder == "resetGame" || receivedOrder == "endGame" ||
+                    message.messageType == "resetGame" || message.messageType == "endGame")
+                {
+                    pendingReconnectRoomId = "";
+                }
 
                 // 现在可以安全地访问messageType属性
                 switch (message.messageType)
@@ -1193,6 +1202,7 @@ public class WS_Client : MonoBehaviour
     }
     public Task resetGame()
     {
+        pendingReconnectRoomId = "";
         _ = sendAction("resetGame");
         return Task.CompletedTask;
     }

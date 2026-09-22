@@ -60,6 +60,8 @@ public class TowerGameController : GameBaseController
     // Map answer ID -> GameObject
     private Dictionary<int, GameObject> answerObjectsById = new Dictionary<int, GameObject>();
     private Dictionary<int, GameObject> obstacleObjectsById = new Dictionary<int, GameObject>();
+    private Dictionary<int, int> lastAnswerVisibilityByUid = new Dictionary<int, int>();
+    private Dictionary<int, string> lastAnswerTextByUid = new Dictionary<int, string>();
     private HashSet<string> currentKeys = new HashSet<string>();
     public CharacterSet[] characterSets;
     public GameObject[] scoreboardControllers;
@@ -627,6 +629,10 @@ public class TowerGameController : GameBaseController
     public void EndGame()
     {
         LogController.Instance.debug("Game is ended");
+        if (WS_Client.Instance != null)
+        {
+            WS_Client.Instance.pendingReconnectRoomId = "";
+        }
         StartCoroutine(updateScoreUI(()=>
         {
             var client = WS_Client.Instance;
@@ -718,7 +724,7 @@ public class TowerGameController : GameBaseController
             yield return new WaitForSeconds(0.1f);
         }
 
-        int round = WS_Client.Instance.GameData.round;
+        int round =  Math.Clamp(WS_Client.Instance.GameData.round, 1, WS_Client.Instance.GameData.questions.Count);
         WS_Client.QuestionData question = WS_Client.Instance.GameData.questions[round-1];
         if(_autoPlayAudio) RoundTitle.Instance?.ShowRoundTitle(round - 1);
         QuestionController.Instance.nextQuestion(_autoPlayAudio);
@@ -1079,9 +1085,12 @@ public class TowerGameController : GameBaseController
             CharacterController characterController = characterControllers != null ? characterControllers.Find(c => c.UserId == player.uid) : null;
             if (characterController != null)
             {
-                if (characterController.answerBubble != null)
+                int answerVisible = player.isAnswerVisible != 0 ? 1 : 0;
+                if (characterController.answerBubble != null &&
+                    (!lastAnswerVisibilityByUid.TryGetValue(player.uid, out int lastVisibility) || lastVisibility != answerVisible))
                 {
-                    SetUI.Set(characterController.answerBubble, player.isAnswerVisible != 0);
+                    SetUI.Set(characterController.answerBubble, answerVisible != 0);
+                    lastAnswerVisibilityByUid[player.uid] = answerVisible;
                 }
 
                 string answerContent = "";
@@ -1098,9 +1107,11 @@ public class TowerGameController : GameBaseController
                     }
                 }
 
-                if (characterController.answerText != null)
+                if (characterController.answerText != null &&
+                    (!lastAnswerTextByUid.TryGetValue(player.uid, out string lastAnswerText) || lastAnswerText != answerContent))
                 {
                     characterController.answerText.text = answerContent;
+                    lastAnswerTextByUid[player.uid] = answerContent;
                 }
             }
         }
