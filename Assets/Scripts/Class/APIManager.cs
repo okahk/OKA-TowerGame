@@ -63,11 +63,11 @@ public class APIManager
 
     public void controlDebugLayer()
     {
-        if (this.debugLayer != null && Input.GetKeyDown("d"))
+        /*if (this.debugLayer != null && Input.GetKeyDown("d"))
         {
             showingDebugBox = !showingDebugBox;
             SetUI.Set(this.debugLayer.GetComponent<CanvasGroup>(), showingDebugBox, 0f);
-        }
+        }*/
         this.checkLoginErrorBox();
     }
 
@@ -1062,6 +1062,11 @@ public static class APIConstant
 
     public static string GameAddCurrencyAPI(LoaderConfig loader)
     {
+        if (string.IsNullOrEmpty(StarwishpartySiteDomain(loader)))
+        {
+            LogController.Instance?.debug("Current site not support starwish add currency api.");
+            return string.Empty;
+        }
         return $"{StarwishpartySiteDomain(loader)}/OKAGames/public/index.php/api/accounts/add-currency";
     }
 
@@ -1073,16 +1078,31 @@ public static class APIConstant
 
     public static string GetStarwishPartyAccountAPI(LoaderConfig loader)
     {
+        if (string.IsNullOrEmpty(StarwishpartySiteDomain(loader)))
+        {
+            LogController.Instance?.debug("Current site not support starwish add currency api.");
+            return string.Empty;
+        }
         return $"{StarwishpartySiteDomain(loader)}/OKAGames/public/index.php/api/accounts/{loader.apiManager.accountUid}";
     }
 
     public static string GetHelpToolInventoryAPI(LoaderConfig loader)
     {
+        if (string.IsNullOrEmpty(StarwishpartySiteDomain(loader)))
+        {
+            LogController.Instance?.debug("Current site not support starwish add currency api.");
+            return string.Empty;
+        }
         return $"{StarwishpartySiteDomain(loader)}/OKAGames/public/index.php/api/help-tools/user/inventory";
     }
 
     public static string UpdateUseOfHelpToolAPI(LoaderConfig loader)
     {
+        if (string.IsNullOrEmpty(StarwishpartySiteDomain(loader)))
+        {
+            LogController.Instance?.debug("Current site not support starwish add currency api.");
+            return string.Empty;
+        }
         return $"{StarwishpartySiteDomain(loader)}/OKAGames/public/index.php/api/help-tools/use";
     }
 
@@ -1091,17 +1111,21 @@ public static class APIConstant
         string domain = "";
         if (isLoginedStarwishPartySite(loader))
         {
-            //test prod
-            if (loader.CurrentHostName.Contains("www.starwishparty.com") ||
-                loader.CurrentHostName.Contains("pro.starwishparty.com") ||
-                loader.CurrentHostName.Contains("rainbowone.app") ||
-                loader.CurrentHostName.Contains("www.rainbowone.app") ||
-                loader.CurrentHostName.Contains("app.starwishparty.com"))
-                domain = "pro.starwishparty.com";
-            else
-                domain = loader.CurrentHostName;
-        }
-
+            switch(loader.currentHostName)
+            {
+                case HostName.dev:
+                case HostName.uat:
+                    domain = loader.CurrentHostName;
+                    break;
+                case HostName.preprod:
+                case HostName.prod:
+                    domain = "pro.starwishparty.com";
+                    break;
+                default:
+                    domain = loader.CurrentHostName;
+                    return domain;
+            }
+        }    
         return domain;
     }
 
@@ -1109,24 +1133,28 @@ public static class APIConstant
     {
         bool isLogined = loader.apiManager.IsLogined;
         if (!isLogined) return false;
-        /*bool isLoginedStarwishParty = 
+        bool isLoginedStarwishParty =
                           loader.CurrentHostName.Contains("dev.starwishparty.com") ||
                           loader.CurrentHostName.Contains("uat.starwishparty.com") ||
                           loader.CurrentHostName.Contains("pre.starwishparty.com") ||
                           loader.CurrentHostName.Contains("www.starwishparty.com") ||
-                          loader.CurrentHostName.Contains("rainbowone.app") ||
-                          loader.CurrentHostName.Contains("www.rainbowone.app");*/
-        return loader.apiManager.starwishPartyDomains.Any(domain => loader.CurrentHostName.Contains(domain, StringComparison.OrdinalIgnoreCase));
+                          loader.CurrentHostName.Contains("app.starwishparty.com");
+        return isLoginedStarwishParty;
     }
 
     public static string GetCostumeDataAPI(LoaderConfig loader)
     {
+        if (string.IsNullOrEmpty(StarwishpartySiteDomain(loader)))
+        {
+            LogController.Instance?.debug("Current site not support starwish GetCostumeDataAPI.");
+            return string.Empty;
+        }
         return $"{StarwishpartySiteDomain(loader)}/OKAGames/public/index.php/api/costumes";
     }
 
     public static string GetCurrentAccountAPI(LoaderConfig loader)
     {
-        // Defensive check ¡X avoid NullReference when LoaderConfig or its CurrentHostName isn't initialized yet.
+        // Defensive check ï¿½X avoid NullReference when LoaderConfig or its CurrentHostName isn't initialized yet.
         if (loader == null || string.IsNullOrEmpty(StarwishpartySiteDomain(loader)))
         {
             Debug.LogWarning("GetCurrentAccountAPI: LoaderConfig or CurrentHostName is null/empty. Returning empty API.");
@@ -1143,7 +1171,7 @@ public static class APIConstant
             {
                 HostName.dev => "https://okadev.blob.core.windows.net/media/",
                 HostName.uat => "https://okauat.blob.core.windows.net/media/",
-                HostName.preprod => "https://okapreprod.blob.core.windows.net/media/",
+                HostName.preprod => "https://oka.blob.core.windows.net/media/",
                 HostName.prod => "https://oka.blob.core.windows.net/media/",
                 _ => throw new NotImplementedException()
             };

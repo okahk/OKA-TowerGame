@@ -37,6 +37,8 @@ public class MainMenu : MonoBehaviour
             InstructionSlideShow.Instance?.ShowInstructionPopup(false);
             SetUI.SetMove(this.gameStartPanel, true, Vector2.zero, 0.5f);
         }
+
+        ExternalCaller.SaveHistoryBackTarget();
     }
 
     public void MusicOnbutton()

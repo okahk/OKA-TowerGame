@@ -26,6 +26,21 @@ public static class ExternalCaller
 #endif
     }
 
+    public static void SaveHistoryBackTarget()
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+    Application.ExternalEval(@"
+        (function() {
+            var target = document.referrer || '';
+            if (!target && window.history.length > 1) {
+                target = window.location.href;
+            }
+            sessionStorage.setItem('game_back_target', target);
+        })();
+    ");
+#endif
+    }
+
     public static void BackToHomeUrlPage(bool isLogined = false)
     {
 #if !UNITY_EDITOR
@@ -35,15 +50,25 @@ public static class ExternalCaller
             {
                 if (LoaderConfig.Instance.gameSetup.gameExitType == 1)
                 {
-                    string javascript = $@"
-                            if (window.self !== window.top) {{
-                                console.log('This page is inside an iframe');
-                                window.parent.postMessage({{ action: 'exit' }}, '*');
-                            }}
-                            else {{
-                                history.back();
-                            }}
-                        ";
+                    string javascript = @"
+                        if (window.self !== window.top) {
+                            console.log('This page is inside an iframe');
+                            window.parent.postMessage({ action: 'exit' }, '*');
+                        }
+                        else {
+                            (function() {
+                                var target = sessionStorage.getItem('game_back_target');
+                                if (target) {
+                                    sessionStorage.removeItem('game_back_target');
+                                    window.location.replace(target);
+                                } else if (window.history.length > 1) {
+                                    window.history.back();
+                                } else {
+                                    window.location.replace(window.location.origin);
+                                }
+                            })();
+                        }
+                    ";
                     Application.ExternalEval(javascript);
                 }
                 else if (LoaderConfig.Instance.gameSetup.gameExitType == 2)
