@@ -42,15 +42,19 @@ public class QuestionController : MonoBehaviour
 
         try
         {
-            this.questionData = WS_Client.Instance.GameData.questions;
+            var client = WS_Client.Instance;
+            if (client == null || client.GameData == null || client.GameData.questions == null)
+                return;
+
+            this.questionData = client.GameData.questions;
             int questionCount = this.questionData.Count;
             LogController.Instance?.debug("Loaded questions:" + questionCount);
-            if (this.questionData == null || questionCount == 0)
+            if (questionCount == 0)
             {
                 return;
             }
 
-            int round = WS_Client.Instance.GameData.round;
+            int round = Mathf.Clamp(client.GameData.round, 1, questionCount);
             this.currentQuestion = this.questionData[round - 1];
             string mediaUrl = "";
             LogController.Instance.debug("updateQuestionUI: round = " + round + " - question = " + this.currentQuestion.content + " - questionMedia = " + this.currentQuestion.media);

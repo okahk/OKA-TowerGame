@@ -463,6 +463,10 @@ public class WS_Client : MonoBehaviour
                     case "roomInfo":
                         Debug.Log("roomInfo : " + jsonString);
                         roomId = message.roomId;
+                        if (!string.IsNullOrEmpty(roomId) && roomId != "lobby")
+                        {
+                            pendingReconnectRoomId = roomId;
+                        }
                         break;
                     case "listGameRoom":
                         Debug.Log("listGameRoom : " + jsonString);
@@ -554,6 +558,7 @@ public class WS_Client : MonoBehaviour
                     case "inPlayingRoom":
                         Debug.LogWarning("inPlayingRoom : " + jsonString);
                         pendingReconnectRoomId = message.content.roomId;
+                        roomId = pendingReconnectRoomId;
                         break;
                     case "connectionClose":
                         // Server can send this when the same account connects from another device:
@@ -819,8 +824,21 @@ public class WS_Client : MonoBehaviour
         {
             // await JoinRoom(); // 调用一次 JoinRoom
             await ListGameRoom();
-            // Automatically join game room after listing rooms
-            JoinGameRoom(0);
+
+            // Rejoin the room held before the socket disconnected. Only use the
+            // lobby when there is no active game room to restore.
+            string roomToRestore = !string.IsNullOrEmpty(pendingReconnectRoomId)
+                ? pendingReconnectRoomId
+                : roomId;
+
+            if (!string.IsNullOrEmpty(roomToRestore) && roomToRestore != "lobby")
+            {
+                await JoinRoom(roomToRestore);
+            }
+            else
+            {
+                JoinGameRoom(0);
+            }
         }
         catch (Exception ex)
         {
@@ -862,8 +880,12 @@ public class WS_Client : MonoBehaviour
 
     public async Task JoinRoom(int roomId = 1)
     {
-        string roomIdString = "room" + roomId.ToString();
-        if (roomId == 0) roomIdString = "lobby";
+        string roomIdString = roomId == 0 ? "lobby" : "room" + roomId.ToString();
+        await JoinRoom(roomIdString);
+    }
+
+    private async Task JoinRoom(string roomIdString)
+    {
         var msg = new OutMessage
         {
             messageType = "joinRoom",
@@ -907,6 +929,7 @@ public class WS_Client : MonoBehaviour
     void disconnected()
     {
         pendingOrder = "disconnected";
+        Debug.LogWarning("WebSocket disconnected, invoking OnOrderChanged with 'disconnected'");
         OnOrderChanged?.Invoke("disconnected");
     }
 

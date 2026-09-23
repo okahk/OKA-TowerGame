@@ -720,14 +720,16 @@ public class TowerGameController : GameBaseController
 
     private IEnumerator updateQuestionUI(bool _autoPlayAudio = false)
     {
-        while (WS_Client.Instance.GameData == null && WS_Client.Instance.GameData.questions == null) {
+        while (WS_Client.Instance == null ||
+               WS_Client.Instance.GameData == null ||
+               WS_Client.Instance.GameData.questions == null ||
+               WS_Client.Instance.GameData.questions.Count == 0) {
             yield return new WaitForSeconds(0.1f);
         }
 
-        int round =  Math.Clamp(WS_Client.Instance.GameData.round, 1, WS_Client.Instance.GameData.questions.Count);
-        WS_Client.QuestionData question = WS_Client.Instance.GameData.questions[round-1];
+        int round = Math.Clamp(WS_Client.Instance.GameData.round, 1, WS_Client.Instance.GameData.questions.Count);
         if(_autoPlayAudio) RoundTitle.Instance?.ShowRoundTitle(round - 1);
-        QuestionController.Instance.nextQuestion(_autoPlayAudio);
+        QuestionController.Instance?.nextQuestion(_autoPlayAudio);
         while (round == currentQuestionId) {
             round = WS_Client.Instance.GameData.round;
             yield return new WaitForSeconds(0.1f);
@@ -1356,17 +1358,25 @@ public class TowerGameController : GameBaseController
                 return;
             }
 
-            int playerIndex = int.Parse(player.player_id.Replace("player", "")) - 1;
+            string playerNumber = player.player_id.StartsWith("player", StringComparison.OrdinalIgnoreCase)
+                ? player.player_id.Substring(6)
+                : player.player_id;
 
-        if (playerIndex >= 0 && playerIndex < this.scoreboardControllers.Length)
-        {
-            scoreboardController sb = this.scoreboardControllers[playerIndex].GetComponent<scoreboardController>();
-            if (sb != null && sb.key == "")
+            if (int.TryParse(playerNumber, out int playerIndex) &&
+                this.scoreboardControllers != null &&
+                playerIndex > 0 && playerIndex <= this.scoreboardControllers.Length)
             {
-                matchingScoreboard = sb;
-                matchingScoreboard.key = key;
+                GameObject scoreboardObject = this.scoreboardControllers[playerIndex - 1];
+                scoreboardController scoreboard = scoreboardObject != null
+                    ? scoreboardObject.GetComponent<scoreboardController>()
+                    : null;
+
+                if (scoreboard != null && (string.IsNullOrEmpty(scoreboard.key) || scoreboard.key == key))
+                {
+                    matchingScoreboard = scoreboard;
+                    matchingScoreboard.key = key;
+                }
             }
-        }
         
         if (characterController == null)
         {
@@ -1396,7 +1406,16 @@ public class TowerGameController : GameBaseController
 
         // mark local player for client-side control
         characterController.setLocalPlayer(isLocal);
-        characterController.setPlayerTag(playerTags[playerIndex], player.ename);
+        if (this.playerTags != null && this.playerTags.Length >= 2)
+        {
+            int teamTagIndex = (playerIndex % 2 == 0) ? 1 : 0;
+            characterController.setPlayerTag(this.playerTags[teamTagIndex], player.ename);
+        }
+        else
+        {
+            LogController.Instance.debugError("TowerGameController: playerTags must contain at least two team sprites.");
+            characterController.setPlayerTag(null, player.ename);
+        }
         if (isLocal)
         {
             LogController.Instance.debug($"Local player created for uid={uid}");
@@ -1405,31 +1424,39 @@ public class TowerGameController : GameBaseController
         playerControllersByKey[key] = characterController;
         characterController.key = key;
 
+        Texture2D scoreboardIcon = null;
+
         // Safely parse and access costume with bounds checking
         if (!string.IsNullOrEmpty(player.costume_id) && int.TryParse(player.costume_id, out int costumeId))
         {
             int arrayIndex = costumeId - 1;
-            if (arrayIndex >= 0 && arrayIndex < this.characterSets.Length && this.characterSets[arrayIndex] != null)
+            if (this.characterSets != null &&
+                arrayIndex >= 0 && arrayIndex < this.characterSets.Length &&
+                this.characterSets[arrayIndex] != null)
             {
                 var characterSet = this.characterSets[arrayIndex];
-                if (characterSet.walkingAnimationTextures != null && characterSet.walkingAnimationTextures.Length >= 2)
+                if (characterSet.walkingAnimationTextures != null && characterSet.walkingAnimationTextures.Length > 0)
                 {
                     characterController.SetCostumeTextures(characterSet);
                 }
-                
-                if (matchingScoreboard != null)
-                {
-                    matchingScoreboard.setScoreboard(key, characterSet.defaultIcon as Texture2D, player.ename);
-                }
+
+                scoreboardIcon = characterSet.defaultIcon as Texture2D;
             }
             else
             {
-                    LogController.Instance.debugError($"Invalid costume_id {player.costume_id} for player {player.uid}. Valid range: 1-{this.characterSets.Length}");
+                int costumeCount = this.characterSets != null ? this.characterSets.Length : 0;
+                LogController.Instance.debugError($"Invalid costume_id {player.costume_id} for player {player.uid}. Valid range: 1-{costumeCount}");
             }
         }
         else
         {
-                LogController.Instance.debug($"Player {player.uid} has invalid or empty costume_id: {player.costume_id}");
+            LogController.Instance.debug($"Player {player.uid} has invalid or empty costume_id: {player.costume_id}");
+        }
+
+        // Scoreboard visibility must not depend on costume parsing succeeding.
+        if (matchingScoreboard != null)
+        {
+            matchingScoreboard.setScoreboard(key, scoreboardIcon, player.ename);
         }
 
             // keep an incremental id for legacy naming if needed

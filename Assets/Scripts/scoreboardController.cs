@@ -49,8 +49,8 @@ public class scoreboardController : MonoBehaviour
         this.icon = icon;
         this.text = text;
         this.isReady = false;
-        this.iconImage.sprite = SetUI.ConvertTextureToSprite(this.icon);
-        this.iconObject.SetActive(true);
+        this.iconImage.sprite = this.icon != null ? SetUI.ConvertTextureToSprite(this.icon) : null;
+        this.iconObject.SetActive(this.icon != null);
         this.textComponent.text = this.text;
         this.rootCanvasGroup.alpha = 1f;
     }

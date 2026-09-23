@@ -366,7 +366,7 @@ public class CharacterController : UserData
             LogController.Instance.debug("Teleporting player due to large desync: distance=" + distance);
             transform.localPosition = new Vector3(localDestination.x, localDestination.y, transform.localPosition.z);
         }
-        else if (distance > 10f)
+        else if (distance > 0.02f)
         {
             var newFollowSpeed = followSpeed * (1 / TowerGameController.Instance.clientMapScale);
             currectSpeed = Mathf.Min(currectSpeed + acc * Time.deltaTime, newFollowSpeed);
@@ -419,7 +419,7 @@ public class CharacterController : UserData
             // Animation: only play walking when movement is meaningful or local player is dragging
             if (this.characterAnimation == null) return;
 
-            const float remoteMoveThreshold = 10f;
+            const float remoteMoveThreshold = 0.02f;
             bool remoteShouldWalk = (!IsLocalPlayer && this.distance > remoteMoveThreshold);
             bool localShouldWalk = (IsLocalPlayer && isMouseDown && this.isMoving);
             bool shouldWalk = remoteShouldWalk || localShouldWalk;
