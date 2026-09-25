@@ -29358,15 +29358,18 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: '1. Use touch to move player to collect the answer.
+  m_text: '1.There are two teams: "Blue Team A" and "Red Team B".
 
-    2. Get the answer
-    and move to yellow area.
+    2.Players
+    will join a team in order.
 
-    3. Desktop viewer only support single player mode.
+    3.Use touch controls to move your player and
+    find the answer on the map.
 
-    4.
-    Touch device support two players mode.'
+    4.Find the answer and move to your team''s submission
+    area.
+
+    5.Use the mini-map to help you find the answer.'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: b326d8aa50e793b4d883deabef5c9fe5, type: 2}
   m_sharedMaterial: {fileID: -1158441724225675995, guid: b326d8aa50e793b4d883deabef5c9fe5, type: 2}
@@ -29393,7 +29396,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 28.6
+  m_fontSize: 23.5
   m_fontSizeBase: 36
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -33148,9 +33151,9 @@ CanvasGroup:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 529676458630499714}
   m_Enabled: 1
-  m_Alpha: 0
-  m_Interactable: 0
-  m_BlocksRaycasts: 0
+  m_Alpha: 1
+  m_Interactable: 1
+  m_BlocksRaycasts: 1
   m_IgnoreParentGroups: 0
 --- !u!114 &8292484050159036676
 MonoBehaviour:

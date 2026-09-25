@@ -463,10 +463,6 @@ public class WS_Client : MonoBehaviour
                     case "roomInfo":
                         Debug.Log("roomInfo : " + jsonString);
                         roomId = message.roomId;
-                        if (!string.IsNullOrEmpty(roomId) && roomId != "lobby")
-                        {
-                            pendingReconnectRoomId = roomId;
-                        }
                         break;
                     case "listGameRoom":
                         Debug.Log("listGameRoom : " + jsonString);
