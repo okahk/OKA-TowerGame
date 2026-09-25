@@ -53,6 +53,7 @@ public class TowerGameController : GameBaseController
 
     // Map WS player key (string) -> CharacterController (ensures one GameObject per ws player)
     private Dictionary<string, CharacterController> playerControllersByKey = new Dictionary<string, CharacterController>();
+    private Dictionary<int, string> playerKeysByUid = new Dictionary<int, string>();
 
     // Map question ID -> GameObject
     private Dictionary<int, GameObject> questionObjectsById = new Dictionary<int, GameObject>();
@@ -63,14 +64,13 @@ public class TowerGameController : GameBaseController
     private Dictionary<int, int> lastAnswerVisibilityByUid = new Dictionary<int, int>();
     private Dictionary<int, string> lastAnswerTextByUid = new Dictionary<int, string>();
     private HashSet<string> currentKeys = new HashSet<string>();
+    private HashSet<string> disconnectedPlayerKeys = new HashSet<string>();
     public CharacterSet[] characterSets;
     public GameObject[] scoreboardControllers;
     public Sprite[] playerTags;
     public GameObject[] teamIcons;
     public TextMeshProUGUI correctAnswerText;
     public bool allPlayersReady = false;
-
-
 
     /// <summary>
     /// minmap
@@ -398,8 +398,18 @@ public class TowerGameController : GameBaseController
         switch (newOrder)
         {
             case "addPlayer":
+                if (WS_Client.Instance.pendingAddedUid > 0)
+                {
+                    MarkPlayerConnected(WS_Client.Instance.pendingAddedUid);
+                    WS_Client.Instance.pendingAddedUid = -1;
+                }
             break;
             case "removePlayer":
+                if (WS_Client.Instance.pendingRemovedUid > 0)
+                {
+                    MarkPlayerDisconnected(WS_Client.Instance.pendingRemovedUid);
+                    WS_Client.Instance.pendingRemovedUid = -1;
+                }
             break;
             case "reconnectPlayer":
                 StartCoroutine(updateScoreUI());
@@ -498,7 +508,7 @@ public class TowerGameController : GameBaseController
 
             // Recreate / resync players and UI from authoritative GameData
             // This will create missing player controllers and set positions
-            resetStartingPos();
+            resetStartingPos(true);
 
             // Immediately sync UI pieces: scores, question, answers, minimap, answer visibility
             StartCoroutine(updateScoreUI());
@@ -507,10 +517,6 @@ public class TowerGameController : GameBaseController
 
             // Force an immediate players sync (updates destinations, minimap markers, answer bubbles)
             SyncPlayers();
-
-            // Ensure countdown/timer UI updates (server's startCountDown is fired in WS_Client when SyncRoomData arrived,
-            // but call handler here to be safe)
-            HandleStartCountDownChanged(client.GameData.startCountDown);
 
             LogController.Instance.debug("HandleReconnectedSync: sync completed.");
         }
@@ -770,15 +776,12 @@ public class TowerGameController : GameBaseController
                 bool isLocal = (player.uid == localUid);
                 if (!playerControllersByKey.ContainsKey(key))
                 {
-                    Vector3 location = Vector3.zero;
+                    Vector3 location = player.position != null && player.position.Length >= 2
+                        ? new Vector3(player.position[0], player.position[1], 0f)
+                        : Vector3.zero;
 
                     LogController.Instance.debug("CreatePlayerFromData 1: " + location + " - " + key + " - " + isLocal);
-
-                        if (player.position != null && player.position.Length >= 2)
-                        {
-                            var originalPosition = new Vector2(player.position[0], player.position[1]);
-                            this.CreatePlayerFromData(player, originalPosition, key, isLocal);
-                        }
+                    this.CreatePlayerFromData(player, location, key, isLocal);
                 }
 
                 // mark as present for this cycle (used for player removal and minimap cleanup)
@@ -978,7 +981,7 @@ public class TowerGameController : GameBaseController
 
         foreach (var key in toRemove)
         {
-            RemovePlayer(key);
+            RemovePlayer(key, true);
         }
 
         // Remove minimap markers for players that are gone (cleanup)
@@ -1241,7 +1244,7 @@ public class TowerGameController : GameBaseController
     }
 }
 
-    private void resetStartingPos()
+    private void resetStartingPos(bool preserveDisconnectedPlayers = false)
     {
         suppressSyncPlayers = true;
         try
@@ -1250,7 +1253,7 @@ public class TowerGameController : GameBaseController
             var keys = new List<string>(playerControllersByKey.Keys);
             foreach (var k in keys)
             {
-                RemovePlayer(k);
+                RemovePlayer(k, preserveDisconnectedPlayers && IsGameStarted() && !IsPlayerInGameData(k));
             }
 
             // Ensure dictionaries/lists are empty
@@ -1306,6 +1309,7 @@ public class TowerGameController : GameBaseController
                 // Ensure created controller correct identity (defensive)
                 if (playerControllersByKey.TryGetValue(key, out var created) && created != null)
                 {
+                    disconnectedPlayerKeys.Remove(key);
                     created.UserId = p.uid;
                     created.UserName = p.ename ?? ("Player_" + p.uid);
                     created.detectCamera = this.trackingCamera;
@@ -1422,6 +1426,7 @@ public class TowerGameController : GameBaseController
         }
 
         playerControllersByKey[key] = characterController;
+            playerKeysByUid[uid] = key;
         characterController.key = key;
 
         Texture2D scoreboardIcon = null;
@@ -1456,6 +1461,7 @@ public class TowerGameController : GameBaseController
         // Scoreboard visibility must not depend on costume parsing succeeding.
         if (matchingScoreboard != null)
         {
+            disconnectedPlayerKeys.Remove(key);
             matchingScoreboard.setScoreboard(key, scoreboardIcon, player.ename);
         }
 
@@ -1469,7 +1475,7 @@ public class TowerGameController : GameBaseController
         }
     }
 
-    private void RemovePlayer(string key)
+    private void RemovePlayer(string key, bool showDisconnected)
     {
         if (playerControllersByKey.TryGetValue(key, out var cc))
         {
@@ -1481,7 +1487,14 @@ public class TowerGameController : GameBaseController
                     LogController.Instance.debug("RemovePlayer: scoreboardObj=" + scoreboardObj.name + cc.key);
                     scoreboardController matchingScoreboard = scoreboardObj.GetComponent<scoreboardController>();
                     if (matchingScoreboard != null) {
-                        matchingScoreboard.resetScoreboard();
+                        if (IsGameStarted() && (showDisconnected || disconnectedPlayerKeys.Contains(key)))
+                        {
+                            matchingScoreboard.setDisconnected(true);
+                        }
+                        else
+                        {
+                            matchingScoreboard.resetScoreboard();
+                        }
                     }
                 }
                 this.characterControllers.Remove(cc);
@@ -1496,6 +1509,75 @@ public class TowerGameController : GameBaseController
     #if !UNITY_WEBGL && !UNITY_IOS
     GC.Collect();
     #endif
+    }
+
+    private void MarkPlayerDisconnected(int uid)
+    {
+        var player = WS_Client.Instance.GameData != null && WS_Client.Instance.GameData.players != null
+            ? WS_Client.Instance.GameData.players.Find(candidate => candidate != null && candidate.uid == uid)
+            : null;
+        var character = characterControllers != null
+            ? characterControllers.Find(candidate => candidate != null && candidate.UserId == uid)
+            : null;
+        var key = player != null ? player.player_id : character != null ? character.key :
+            (playerKeysByUid.TryGetValue(uid, out var knownKey) ? knownKey : null);
+        if (string.IsNullOrEmpty(key)) return;
+
+        if (!IsGameStarted())
+        {
+            disconnectedPlayerKeys.Remove(key);
+            var waitingScoreboard = Array.Find(scoreboardControllers, obj =>
+                obj != null && obj.GetComponent<scoreboardController>() != null &&
+                obj.GetComponent<scoreboardController>().key == key);
+            if (waitingScoreboard != null)
+            {
+                waitingScoreboard.GetComponent<scoreboardController>().resetScoreboard();
+            }
+            return;
+        }
+
+        disconnectedPlayerKeys.Add(key);
+        var scoreboardObject = Array.Find(scoreboardControllers, obj =>
+            obj != null && obj.GetComponent<scoreboardController>() != null &&
+            obj.GetComponent<scoreboardController>().key == key);
+        if (scoreboardObject != null)
+        {
+            scoreboardObject.GetComponent<scoreboardController>().setDisconnected(true);
+        }
+    }
+
+    private void MarkPlayerConnected(int uid)
+    {
+        var player = WS_Client.Instance.GameData != null && WS_Client.Instance.GameData.players != null
+            ? WS_Client.Instance.GameData.players.Find(candidate => candidate != null && candidate.uid == uid)
+            : null;
+        var character = characterControllers != null
+            ? characterControllers.Find(candidate => candidate != null && candidate.UserId == uid)
+            : null;
+        var key = player != null ? player.player_id : character != null ? character.key :
+            (playerKeysByUid.TryGetValue(uid, out var knownKey) ? knownKey : null);
+        if (string.IsNullOrEmpty(key)) return;
+
+        disconnectedPlayerKeys.Remove(key);
+        var scoreboardObject = Array.Find(scoreboardControllers, obj =>
+            obj != null && obj.GetComponent<scoreboardController>() != null &&
+            obj.GetComponent<scoreboardController>().key == key);
+        if (scoreboardObject != null)
+        {
+            scoreboardObject.GetComponent<scoreboardController>().setDisconnected(false);
+        }
+    }
+
+    private bool IsPlayerInGameData(string key)
+    {
+        var players = WS_Client.Instance.GameData != null ? WS_Client.Instance.GameData.players : null;
+        return players != null && players.Exists(player => player != null && player.player_id == key);
+    }
+
+    private bool IsGameStarted()
+    {
+        return WS_Client.Instance.GameData != null &&
+            string.Equals(WS_Client.Instance.GameData.status, "playing", StringComparison.OrdinalIgnoreCase);
     }
 
     private void RemovePlayerMarker(string key)

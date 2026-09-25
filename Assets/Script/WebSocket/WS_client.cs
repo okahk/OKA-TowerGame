@@ -39,6 +39,9 @@ public class WS_Client : MonoBehaviour
     public string pendingReconnectRoomId = "";
     public string pendingOrder = "";
     public int pendingReconnectUid = -1;
+    public int pendingRemovedUid = -1;
+    public int pendingAddedUid = -1;
+    private bool suppressCountdownAfterReconnect;
 
     // New: flag set when server informs same-account connection (another device)
     // Consumers (UI/controllers) can read this to block actions or show UI.
@@ -168,6 +171,8 @@ public class WS_Client : MonoBehaviour
         public string roomId;
         public UserInfo userInfo;
         public UserInfo added;
+        public List<UserInfo> removed;
+        public List<UserInfo> members;
         public string message;
         public List<RoomInfo> roomList;
 
@@ -463,6 +468,26 @@ public class WS_Client : MonoBehaviour
                     case "roomInfo":
                         Debug.Log("roomInfo : " + jsonString);
                         roomId = message.roomId;
+                        if (message.content != null && message.content.removed != null)
+                        {
+                            foreach (var removedPlayer in message.content.removed)
+                            {
+                                if (removedPlayer == null || removedPlayer.uid <= 0) continue;
+
+                                pendingRemovedUid = removedPlayer.uid;
+                                OnOrderChanged?.Invoke("removePlayer");
+                            }
+                        }
+                        if (message.content != null && message.content.members != null)
+                        {
+                            foreach (var member in message.content.members)
+                            {
+                                if (member == null || member.uid <= 0) continue;
+
+                                pendingAddedUid = member.uid;
+                                OnOrderChanged?.Invoke("addPlayer");
+                            }
+                        }
                         break;
                     case "listGameRoom":
                         Debug.Log("listGameRoom : " + jsonString);
@@ -475,7 +500,14 @@ public class WS_Client : MonoBehaviour
                         debugLogPerSecond("OnMessage! " + jsonString);
                         //Debug.Log(jsonString);
                         this.GameData = message.content.roomGameData;
-                        this.OnStartCountDownChanged?.Invoke(this.GameData.startCountDown);
+                        if (suppressCountdownAfterReconnect)
+                        {
+                            suppressCountdownAfterReconnect = false;
+                        }
+                        else
+                        {
+                            this.OnStartCountDownChanged?.Invoke(this.GameData.startCountDown);
+                        }
                         //Debug.Log($"SyncRoomData: ready button startCountDown = {this.GameData.startCountDown}");
                         if (!string.IsNullOrEmpty(message.content.order))
                         {
@@ -533,6 +565,11 @@ public class WS_Client : MonoBehaviour
                                     pendingReconnectUid = -1;
                                    // Debug.LogWarning("Received reconnectPlayer order but UID is invalid (set to -1).");
                                 }
+                            }
+                            else if (message.content.order == "removePlayer")
+                            {
+                                var removedPlayer = message.content.added ?? message.content.userInfo;
+                                pendingRemovedUid = removedPlayer != null ? removedPlayer.uid : -1;
                             }
 
                             // Fire the event to notify subscribers
@@ -749,6 +786,9 @@ public class WS_Client : MonoBehaviour
                     // Stop any existing repeating invokes before reconnecting
                     CancelInvoke("SendTest");
                     CancelInvoke("ConstantSyncData");
+
+                    suppressCountdownAfterReconnect = !string.IsNullOrEmpty(roomId) &&
+                        roomId != "lobby" && GameData != null && GameData.status == "playing";
                     
                     // Reconnect
                     Connect();
