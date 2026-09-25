@@ -16,6 +16,7 @@ public class CharacterController : UserData
     public int direction = 0;
     public string key = "";
     public bool IsLocalPlayer = false; 
+    public GameObject wifiDisconnectedIndicator;
     private Vector3 localDestination = Vector3.zero;
     public bool isMouseDown = false; 
     public CanvasGroup localPlayer;
@@ -40,6 +41,8 @@ public class CharacterController : UserData
     private void Awake()
     {
         this.cachedTransform = transform;
+
+        this.SetWifiDisconnected(false);
     }
 
 
@@ -55,6 +58,15 @@ public class CharacterController : UserData
         this.IsLocalPlayer = _isLocalPlayer;
         SetUI.Set(this.localPlayer, _isLocalPlayer);
     }
+
+    public void SetWifiDisconnected(bool disconnected)
+    {
+        if (this.wifiDisconnectedIndicator != null)
+        {
+            this.wifiDisconnectedIndicator.SetActive(disconnected);
+        }
+    }
+
     public void setPlayerTag(Sprite tag, string playerName)
     {
         if (this.playerTag != null)

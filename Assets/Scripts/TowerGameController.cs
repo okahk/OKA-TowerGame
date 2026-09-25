@@ -463,6 +463,12 @@ public class TowerGameController : GameBaseController
                 break;
             case "disconnected":
                 disconnectedUI.SetActive(true);
+                if (IsGameStarted() && WS_Client.Instance.public_UserInfo != null)
+                {
+                    var localCharacter = characterControllers.Find(character =>
+                        character != null && character.UserId == WS_Client.Instance.public_UserInfo.uid);
+                    localCharacter?.SetWifiDisconnected(true);
+                }
                 break;
             case "reconnected":
                 // Start background sync: wait for server SyncRoomData then refresh local game state
@@ -517,6 +523,13 @@ public class TowerGameController : GameBaseController
 
             // Force an immediate players sync (updates destinations, minimap markers, answer bubbles)
             SyncPlayers();
+
+            if (client.public_UserInfo != null)
+            {
+                var localCharacter = characterControllers.Find(character =>
+                    character != null && character.UserId == client.public_UserInfo.uid);
+                localCharacter?.SetWifiDisconnected(false);
+            }
 
             LogController.Instance.debug("HandleReconnectedSync: sync completed.");
         }
@@ -1490,13 +1503,23 @@ public class TowerGameController : GameBaseController
                         if (IsGameStarted() && (showDisconnected || disconnectedPlayerKeys.Contains(key)))
                         {
                             matchingScoreboard.setDisconnected(true);
+                            cc.SetWifiDisconnected(true);
                         }
                         else
                         {
                             matchingScoreboard.resetScoreboard();
+                            cc.SetWifiDisconnected(false);
                         }
                     }
                 }
+
+                if (IsGameStarted() && showDisconnected)
+                {
+                    disconnectedPlayerKeys.Add(key);
+                    this.RemovePlayerMarker(key);
+                    return;
+                }
+
                 this.characterControllers.Remove(cc);
                 GameObject.Destroy(cc.gameObject);
                 LogController.Instance.debug($"[TowerGameController] Removed player GameObject for key={key}");
@@ -1544,6 +1567,11 @@ public class TowerGameController : GameBaseController
         {
             scoreboardObject.GetComponent<scoreboardController>().setDisconnected(true);
         }
+
+        if (character != null)
+        {
+            character.SetWifiDisconnected(true);
+        }
     }
 
     private void MarkPlayerConnected(int uid)
@@ -1565,6 +1593,11 @@ public class TowerGameController : GameBaseController
         if (scoreboardObject != null)
         {
             scoreboardObject.GetComponent<scoreboardController>().setDisconnected(false);
+        }
+
+        if (character != null)
+        {
+            character.SetWifiDisconnected(false);
         }
     }
 
