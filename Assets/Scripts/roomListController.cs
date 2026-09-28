@@ -1,4 +1,3 @@
-using System.Collections;
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
@@ -75,13 +74,6 @@ public class roomListController : MonoBehaviour
             }
         }
         playerNoText.text = "<color=#FF000000>0</color>/6";
-        StartCoroutine(RetryFindRoom());
-    }
-
-    private IEnumerator RetryFindRoom()
-    {
-        yield return new WaitForSeconds(0.1f);
-        roomListRefresh();
     }
 
     public void JoinRoom()

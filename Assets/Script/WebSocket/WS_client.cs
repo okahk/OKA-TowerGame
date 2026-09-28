@@ -72,6 +72,7 @@ public class WS_Client : MonoBehaviour
     // Reconnection tracking
     private float lastReconnectAttemptTime = 0f;
     private const float RECONNECT_COOLDOWN = 5f; // 5 seconds between reconnect attempts
+    private bool connectionEnabled;
 
     // Event system for order changes
     public delegate void OrderChangedHandler(string newOrder);
@@ -398,6 +399,8 @@ public class WS_Client : MonoBehaviour
             Debug.Log("WS_Client.Connect skipped because object is destroyed or application is quitting.");
             return;
         }
+
+        connectionEnabled = true;
 
         Debug.Log("Connect: " + GetCurrentUrl);
         // Cancel any existing repeating invokes to prevent duplicates
@@ -773,7 +776,7 @@ public class WS_Client : MonoBehaviour
             needsReconnect = true;
         }
         
-        if (needsReconnect)
+        if (connectionEnabled && needsReconnect)
         {
             // Check if enough time has passed since last reconnect attempt
             if (Time.time - lastReconnectAttemptTime >= RECONNECT_COOLDOWN)
