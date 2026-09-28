@@ -6,6 +6,7 @@ public class scoreboardController : MonoBehaviour
 {
     public string key;
     private Texture2D icon;
+    public Sprite defaultIcon;
     private string text;
     public bool isReady = false;
 
@@ -54,8 +55,7 @@ public class scoreboardController : MonoBehaviour
         this.icon = icon;
         this.text = text;
         this.isReady = false;
-        this.iconImage.sprite = this.icon != null ? SetUI.ConvertTextureToSprite(this.icon) : null;
-        this.iconObject.SetActive(this.icon != null);
+        this.iconImage.sprite = this.icon != null ? SetUI.ConvertTextureToSprite(this.icon) : this.defaultIcon;
         this.textComponent.text = this.text;
         this.isWifiDisconnected = false;
         SetIndicatorAlpha(this.wifiDisconnectedIndicator, 0f);
@@ -75,7 +75,6 @@ public class scoreboardController : MonoBehaviour
         this.text = "";
         this.isReady = false;
         this.isWifiDisconnected = false;
-        this.iconObject.SetActive(false);
         this.rootCanvasGroup.alpha = 0f;
         SetIndicatorAlpha(this.localPlayerIndicator, 0f);
         SetIndicatorAlpha(this.wifiDisconnectedIndicator, 0f);

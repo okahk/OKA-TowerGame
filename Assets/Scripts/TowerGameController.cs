@@ -87,6 +87,8 @@ public class TowerGameController : GameBaseController
     public Vector2 minimapWorldBottomLeft = new Vector2(-50f, -50f); // world coords that map to minimap bottom-left
     public Vector2 minimapWorldTopRight = new Vector2(50f, 50f);
 
+    public Texture defaultCPUPlayerIcon;
+
     private Dictionary<string, RectTransform> minimapMarkersByKey = new Dictionary<string, RectTransform>();
     private Dictionary<int, RectTransform> minimapAnswerMarkersByKey = new Dictionary<int, RectTransform>();
 
@@ -945,7 +947,14 @@ public class TowerGameController : GameBaseController
                             else
                             {
                                 // No icon — hide child to avoid empty visuals
-                                iconImage.enabled = false;
+                                //iconImage.enabled = false;
+                                iconImage.texture = this.defaultCPUPlayerIcon;
+
+                                float aspect = (this.defaultCPUPlayerIcon.width > 0 && this.defaultCPUPlayerIcon.height > 0) ? (float)this.defaultCPUPlayerIcon.width / this.defaultCPUPlayerIcon.height : 1f;
+                                if (aspect >= 1f)
+                                    subIcon.sizeDelta = new Vector2(75f, 75f / aspect);
+                                else
+                                    subIcon.sizeDelta = new Vector2(75f * aspect, 75f);
                             }
                         minimapMarkersByKey[key] = instance;
                         marker = instance;
