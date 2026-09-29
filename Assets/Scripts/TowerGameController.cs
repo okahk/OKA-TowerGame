@@ -130,6 +130,7 @@ public class TowerGameController : GameBaseController
                 HandleOrderChanged(client.pendingOrder);
                 client.pendingOrder = ""; // Clear after processing
             }
+
         }
 
         if (client?.GameData?.teamScore != null && client.GameData.teamScore.Count >= 2)
@@ -526,6 +527,7 @@ public class TowerGameController : GameBaseController
             client.WaitingForReconnectSnapshot = false;
             // Hide disconnected UI now that we have data
             disconnectedUI.SetActive(false);
+            this.gameTimer?.SyncFromServer(client.GameData.gameTimer);
 
             // Recreate / resync players and UI from authoritative GameData
             // This will create missing player controllers and set positions
@@ -1652,8 +1654,12 @@ public class TowerGameController : GameBaseController
 
     private bool IsGameStarted()
     {
-        return WS_Client.Instance.GameData != null &&
-            string.Equals(WS_Client.Instance.GameData.status, "playing", StringComparison.OrdinalIgnoreCase);
+        var client = WS_Client.Instance;
+        if (client == null) return false;
+
+        return client.GameData != null
+            ? string.Equals(client.GameData.status, "playing", StringComparison.OrdinalIgnoreCase)
+            : client.LastKnownGameWasPlaying;
     }
 
     private void RemovePlayerMarker(string key)

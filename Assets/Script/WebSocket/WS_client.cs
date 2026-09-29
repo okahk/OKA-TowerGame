@@ -41,7 +41,8 @@ public class WS_Client : MonoBehaviour
     public int pendingReconnectUid = -1;
     public int pendingRemovedUid = -1;
     public int pendingAddedUid = -1;
-    private bool suppressCountdownAfterReconnect;
+    private bool lastKnownGameWasPlaying;
+    public bool LastKnownGameWasPlaying => lastKnownGameWasPlaying;
 
     // New: flag set when server informs same-account connection (another device)
     // Consumers (UI/controllers) can read this to block actions or show UI.
@@ -75,7 +76,7 @@ public class WS_Client : MonoBehaviour
         get => waitingForReconnectSnapshot;
         set => waitingForReconnectSnapshot = value;
     }
-    
+
     // Disconnection timeout tracking
     private float disconnectionStartTime = -1f;
     private const float DISCONNECTION_TIMEOUT = 5f; // 5 seconds
@@ -529,13 +530,16 @@ public class WS_Client : MonoBehaviour
                         //Debug.Log(jsonString);
                         this.GameData = message.content.roomGameData;
                         gameDataSyncVersion++;
-                        if (suppressCountdownAfterReconnect)
+                        if (this.GameData != null)
                         {
-                            suppressCountdownAfterReconnect = false;
-                        }
-                        else
-                        {
+                            lastKnownGameWasPlaying = string.Equals(this.GameData.status, "playing", StringComparison.OrdinalIgnoreCase);
                             this.OnStartCountDownChanged?.Invoke(this.GameData.startCountDown);
+
+                            if (!string.IsNullOrEmpty(pendingReconnectRoomId) &&
+                                string.Equals(roomId, pendingReconnectRoomId, StringComparison.OrdinalIgnoreCase))
+                            {
+                                pendingReconnectRoomId = "";
+                            }
                         }
                         //Debug.Log($"SyncRoomData: ready button startCountDown = {this.GameData.startCountDown}");
                         if (!string.IsNullOrEmpty(message.content.order))
@@ -604,6 +608,13 @@ public class WS_Client : MonoBehaviour
                             // Fire the event to notify subscribers
                             //Debug.Log("Order received WS_Client: " + message.content.order);
                             OnOrderChanged?.Invoke(message.content.order);
+                        }
+
+                        if (waitingForReconnectSnapshot && this.GameData != null &&
+                            gameDataSyncVersion > reconnectSnapshotVersion)
+                        {
+                            waitingForReconnectSnapshot = false;
+                            OnOrderChanged?.Invoke("reconnected");
                         }
       
                         gameDataReceived = true;
@@ -689,15 +700,6 @@ public class WS_Client : MonoBehaviour
 
         // // waiting for messages\
         await websocket.Connect();
-
-        try
-        {
-            OnOrderChanged?.Invoke("reconnected");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning("Failed to invoke reconnected order: " + ex.Message);
-        }
 
         if (!isQuitting && this != null && gameObject != null)
         {
@@ -824,10 +826,15 @@ public class WS_Client : MonoBehaviour
                     CancelInvoke("SendTest");
                     CancelInvoke("ConstantSyncData");
 
-                    suppressCountdownAfterReconnect = !string.IsNullOrEmpty(roomId) &&
-                        roomId != "lobby" && GameData != null && GameData.status == "playing";
+                    bool reconnectingActiveGame = lastKnownGameWasPlaying &&
+                        !string.IsNullOrEmpty(roomId) && roomId != "lobby";
+                    if (reconnectingActiveGame && string.IsNullOrEmpty(pendingReconnectRoomId))
+                    {
+                        pendingReconnectRoomId = roomId;
+                    }
+
                     reconnectSnapshotVersion = gameDataSyncVersion;
-                    waitingForReconnectSnapshot = true;
+                    waitingForReconnectSnapshot = reconnectingActiveGame;
                     
                     // Reconnect
                     Connect();
@@ -873,6 +880,15 @@ public class WS_Client : MonoBehaviour
     public void JoinGameRoom(int roomId = 1)
     {
         Debug.Log("JoinGameRoom: " + roomId);
+        pendingReconnectRoomId = "";
+        if (roomId == 0)
+        {
+            this.roomId = "lobby";
+            lastKnownGameWasPlaying = false;
+            waitingForReconnectSnapshot = false;
+            GameData = null;
+        }
+
         if (websocket == null || websocket.State != WebSocketState.Open)
         {
             Debug.Log(websocket);
@@ -1005,6 +1021,21 @@ public class WS_Client : MonoBehaviour
 
     void disconnected()
     {
+        if (GameData != null)
+        {
+            lastKnownGameWasPlaying = string.Equals(GameData.status, "playing", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (lastKnownGameWasPlaying && !string.IsNullOrEmpty(roomId) && roomId != "lobby")
+        {
+            pendingReconnectRoomId = roomId;
+        }
+        else
+        {
+            pendingReconnectRoomId = "";
+        }
+
+        GameData = null;
         pendingOrder = "disconnected";
         Debug.LogWarning("WebSocket disconnected, invoking OnOrderChanged with 'disconnected'");
         OnOrderChanged?.Invoke("disconnected");

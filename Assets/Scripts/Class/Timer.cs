@@ -16,10 +16,17 @@ public class Timer : MonoBehaviour
     public UnityEvent finishedEvent;
     private AudioSource lastTenDingDing = null;
     private Tween timerScaleTween = null;
+    private Color originalTimerColor;
+    private Vector3 originalTimerScale;
 
     private void Start()
     {
         this.lastTenDingDing = GetComponent<AudioSource>();
+        if (this.timer != null)
+        {
+            this.originalTimerColor = this.timer.color;
+            this.originalTimerScale = this.timer.transform.localScale;
+        }
         this.Init();
     }
 
@@ -82,17 +89,44 @@ public class Timer : MonoBehaviour
         this.currentTime = this.gameDuration;
         this.UpdateTimerText();
     }
+
+    public void SyncFromServer(float remainingTime)
+    {
+        this.currentTime = Mathf.Max(0f, remainingTime);
+        this.endGame = this.currentTime <= 0f;
+        this.isSoundPlay = false;
+
+        if (this.lastTenDingDing != null)
+        {
+            this.lastTenDingDing.Stop();
+            this.lastTenDingDing.loop = false;
+        }
+
+        if (this.timerScaleTween != null)
+        {
+            if (this.timerScaleTween.IsActive()) this.timerScaleTween.Kill();
+            this.timerScaleTween = null;
+        }
+
+        if (this.timer != null)
+        {
+            this.timer.color = this.originalTimerColor;
+            this.timer.transform.localScale = this.originalTimerScale;
+        }
+
+        this.UpdateTimerText();
+    }
+
     private void UpdateTimerText()
     {
         if(WS_Client.Instance != null && WS_Client.Instance.GameData != null)
         {
             this.currentTime = (float)WS_Client.Instance.GameData.gameTimer;
-            // int minutes = Mathf.FloorToInt(this.currentTime / 60f);
-            // int seconds = Mathf.FloorToInt(this.currentTime % 60f);
-            int minutes = Mathf.FloorToInt(WS_Client.Instance.GameData.gameTimer / 60f);
-            int seconds = Mathf.FloorToInt(WS_Client.Instance.GameData.gameTimer % 60f);
-            this.timer.text = $"{minutes:D2}:{seconds:D2}";
         }
+
+        int minutes = Mathf.FloorToInt(this.currentTime / 60f);
+        int seconds = Mathf.FloorToInt(this.currentTime % 60f);
+        this.timer.text = $"{minutes:D2}:{seconds:D2}";
     }
 
 }
