@@ -50,6 +50,7 @@ public class TowerGameController : GameBaseController
     public bool finishLoading = false; // Set to true after costume data and account costume ID are loaded
     private int loadingImagesCount = 0; // Track how many images are currently loading
     private int currentQuestionId = -1;
+    private int pendingLocalAnswerId = -1;
 
     // Map WS player key (string) -> CharacterController (ensures one GameObject per ws player)
     private Dictionary<string, CharacterController> playerControllersByKey = new Dictionary<string, CharacterController>();
@@ -65,6 +66,8 @@ public class TowerGameController : GameBaseController
     private Dictionary<int, string> lastAnswerTextByUid = new Dictionary<int, string>();
     private HashSet<string> currentKeys = new HashSet<string>();
     private HashSet<string> disconnectedPlayerKeys = new HashSet<string>();
+    private Dictionary<string, float> missingPlayerSince = new Dictionary<string, float>();
+    private const float PLAYER_MISSING_GRACE_PERIOD = 2f;
     public CharacterSet[] characterSets;
     public GameObject[] scoreboardControllers;
     public Sprite[] playerTags;
@@ -491,19 +494,28 @@ public class TowerGameController : GameBaseController
         // disconnectedUI.SetActive(true);
 
         var client = WS_Client.Instance;
-        float timeout = 5f;
+        float timeout = 10f;
         float elapsed = 0f;
-        // Wait until GameData is populated or timeout
-        while ((client == null || client.GameData == null) && elapsed < timeout)
+        bool waitForFreshSnapshot = client != null && client.WaitingForReconnectSnapshot;
+        int previousSnapshotVersion = client != null ? client.ReconnectSnapshotVersion : 0;
+
+        while (elapsed < timeout)
         {
+            client = WS_Client.Instance;
+            bool hasGameData = client != null && client.GameData != null;
+            bool hasFreshSnapshot = !waitForFreshSnapshot ||
+                (client != null && client.GameDataSyncVersion > previousSnapshotVersion);
+            if (hasGameData && hasFreshSnapshot) break;
+
             yield return new WaitForSeconds(0.1f);
             elapsed += 0.1f;
-            client = WS_Client.Instance;
         }
 
-        if (client == null || client.GameData == null)
+        if (client == null || client.GameData == null ||
+            (waitForFreshSnapshot && client.GameDataSyncVersion <= previousSnapshotVersion))
         {
-            LogController.Instance.debug("HandleReconnectedSync: GameData not available after reconnect.");
+            if (client != null) client.WaitingForReconnectSnapshot = false;
+            LogController.Instance.debug("HandleReconnectedSync: fresh GameData not available after reconnect.");
             // keep disconnected UI or show alternative message
             disconnectedUI.SetActive(true);
             yield break;
@@ -511,6 +523,7 @@ public class TowerGameController : GameBaseController
 
         try
         {
+            client.WaitingForReconnectSnapshot = false;
             // Hide disconnected UI now that we have data
             disconnectedUI.SetActive(false);
 
@@ -801,6 +814,7 @@ public class TowerGameController : GameBaseController
 
                 // mark as present for this cycle (used for player removal and minimap cleanup)
                 currentKeys.Add(key);
+                missingPlayerSince.Remove(key);
 
                 // update non-local players' destination
                 if (!isLocal)
@@ -995,7 +1009,7 @@ public class TowerGameController : GameBaseController
             var toRemove = new List<string>();
         foreach (var kv in playerControllersByKey)
         {
-            if (!currentKeys.Contains(kv.Key))
+            if (ShouldRemoveMissingPlayer(kv.Key))
             {
                 toRemove.Add(kv.Key);
             }
@@ -1012,7 +1026,7 @@ public class TowerGameController : GameBaseController
             var markersToRemove = new List<string>();
             foreach (var kv in minimapMarkersByKey)
             {
-                if (!currentKeys.Contains(kv.Key))
+                if (ShouldRemoveMissingPlayer(kv.Key))
                 {
                     if (kv.Value != null) GameObject.Destroy(kv.Value.gameObject);
                     markersToRemove.Add(kv.Key);
@@ -1025,6 +1039,19 @@ public class TowerGameController : GameBaseController
         {
             LogController.Instance.debugError($"Error in SyncPlayers: {ex.Message}\n{ex.StackTrace}");
         }
+    }
+
+    private bool ShouldRemoveMissingPlayer(string key)
+    {
+        if (currentKeys.Contains(key)) return false;
+
+        if (!missingPlayerSince.TryGetValue(key, out float missingSince))
+        {
+            missingPlayerSince[key] = Time.time;
+            return false;
+        }
+
+        return Time.time - missingSince >= PLAYER_MISSING_GRACE_PERIOD;
     }
 
 
@@ -1280,6 +1307,7 @@ public class TowerGameController : GameBaseController
 
             // Ensure dictionaries/lists are empty
             playerControllersByKey.Clear();
+            missingPlayerSince.Clear();
 
             // 2) Destroy any leftover character GameObjects and clear list
             for (int i = characterControllers.Count - 1; i >= 0; i--)
@@ -1798,9 +1826,15 @@ public class TowerGameController : GameBaseController
 
     private void submitCorrectAnswerHandler()
     {
+        pendingLocalAnswerId = -1;
         this.setGetScorePopup(true);
         StartCoroutine(updateScoreUI());
         StartCoroutine(HideYouWinAfterDelay(3f));
+    }
+
+    public void RegisterLocalAnswerSubmission(int answerId)
+    {
+        pendingLocalAnswerId = answerId;
     }
 
     private void submitWrongAnswerHandler()
@@ -1808,35 +1842,25 @@ public class TowerGameController : GameBaseController
         try
         {
             var client = WS_Client.Instance;
+            var submittedAnswer = client?.GameData?.answers?.Find(a => a != null && a.id == pendingLocalAnswerId);
+            bool localSubmittedWrong = pendingLocalAnswerId != -1 &&
+                (submittedAnswer == null || submittedAnswer.isCorrect == 0);
+            pendingLocalAnswerId = -1;
+
+            this.setWrongPopup(localSubmittedWrong);
+            if (localSubmittedWrong)
+            {
+                StartCoroutine(HideYouLoseAfterDelay(3f));
+            }
+
             if (client == null || client.GameData == null || client.GameData.players == null)
             {
-                LogController.Instance.debug("submitWrongAnswerHandler: missing GameData");
                 return;
             }
 
-            // Determine local UID safely
-            int localUid = client.public_UserInfo != null ? client.public_UserInfo.uid : -1;
-
-            // Determine whether the local player submitted a wrong answer.
-            bool localSubmittedWrong = false;
-            if (localUid != -1)
-            {
-                var localPlayer = client.GameData.players.Find(p => p.uid == localUid);
-                if (localPlayer != null && localPlayer.answer_id != 0 && client.GameData.answers != null)
-                {
-                    var answer = client.GameData.answers.Find(a => a.id == localPlayer.answer_id);
-                    if (answer != null)
-                    {
-                        // server's AnswerData.isCorrect == 0 -> wrong
-                        localSubmittedWrong = (answer.isCorrect == 0);
-                    }
-                }
-            }
-
-            // Hide answer bubbles for players who shouldn't show them (same as before)
             foreach (WS_Client.PlayerData player in client.GameData.players)
             {
-                if (player.isAnswerVisible == 0)
+                if (player != null && player.isAnswerVisible == 0)
                 {
                     CharacterController characterController = characterControllers.Find(c => c.UserId == player.uid);
                     if (characterController != null)
@@ -1844,18 +1868,6 @@ public class TowerGameController : GameBaseController
                         characterController.showAnswerBubble(0, "");
                     }
                 }
-            }
-
-            // Show wrong popup only to the submitting (local) player
-            if (localSubmittedWrong)
-            {
-                this.setWrongPopup(true);
-                StartCoroutine(HideYouLoseAfterDelay(3f));
-            }
-            else
-            {
-                // ensure popup hidden for others
-                this.setWrongPopup(false);
             }
         }
         catch (Exception ex)

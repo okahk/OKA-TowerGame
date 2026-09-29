@@ -69,10 +69,11 @@ public class QuestionTrigger : MonoBehaviour
 
         if (playerIndex != -1 && playerIndex % 2 == (int)this.team)
         {
-            // Only submit from the owner. DO NOT clear GameData here ¡X wait for server broadcast.
+            // Only submit from the owner. DO NOT clear GameData here ï¿½X wait for server broadcast.
             if (characterController.IsLocalPlayer)
             {
                 Debug.Log($"QuestionTrigger: local submit uid={characterController.UserId} answerId={answerId}");
+                gameController.RegisterLocalAnswerSubmission(answerId);
                 _ = client.submitAnswer(answerId);
 
                 // Hide local bubble immediately for visual feedback if desired

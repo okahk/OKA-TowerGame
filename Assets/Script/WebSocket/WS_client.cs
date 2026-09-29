@@ -63,6 +63,18 @@ public class WS_Client : MonoBehaviour
     private const float JOIN_COOLDOWN = 1f; // 1秒冷却时间
     public UserInfo userInfo;
     private bool isSendingPosition = false;
+    private float lastHeartbeatResponseTime;
+    private const float HEARTBEAT_TIMEOUT = 15f;
+    private int gameDataSyncVersion;
+    private int reconnectSnapshotVersion;
+    private bool waitingForReconnectSnapshot;
+    public int GameDataSyncVersion => gameDataSyncVersion;
+    public int ReconnectSnapshotVersion => reconnectSnapshotVersion;
+    public bool WaitingForReconnectSnapshot
+    {
+        get => waitingForReconnectSnapshot;
+        set => waitingForReconnectSnapshot = value;
+    }
     
     // Disconnection timeout tracking
     private float disconnectionStartTime = -1f;
@@ -503,6 +515,7 @@ public class WS_Client : MonoBehaviour
                         debugLogPerSecond("OnMessage! " + jsonString);
                         //Debug.Log(jsonString);
                         this.GameData = message.content.roomGameData;
+                        gameDataSyncVersion++;
                         if (suppressCountdownAfterReconnect)
                         {
                             suppressCountdownAfterReconnect = false;
@@ -647,7 +660,8 @@ public class WS_Client : MonoBehaviour
                         }
                         break;
                     case "test":
-                        testReceived = true;                        
+                        testReceived = true;
+                        lastHeartbeatResponseTime = Time.unscaledTime;
                         break;
                     default:
                         Debug.Log("Unhandled messageType: " + message.messageType);
@@ -775,6 +789,13 @@ public class WS_Client : MonoBehaviour
         {
             needsReconnect = true;
         }
+
+        if (websocket != null && websocket.State == WebSocketState.Open &&
+            Time.unscaledTime - lastHeartbeatResponseTime >= HEARTBEAT_TIMEOUT)
+        {
+            Debug.LogWarning("WebSocket heartbeat timed out; reconnecting.");
+            needsReconnect = true;
+        }
         
         if (connectionEnabled && needsReconnect)
         {
@@ -792,6 +813,8 @@ public class WS_Client : MonoBehaviour
 
                     suppressCountdownAfterReconnect = !string.IsNullOrEmpty(roomId) &&
                         roomId != "lobby" && GameData != null && GameData.status == "playing";
+                    reconnectSnapshotVersion = gameDataSyncVersion;
+                    waitingForReconnectSnapshot = true;
                     
                     // Reconnect
                     Connect();
@@ -855,6 +878,8 @@ public class WS_Client : MonoBehaviour
     private async void OnWebSocketOpen()
     {
         Debug.Log("WebSocket连接成功！");
+        lastHeartbeatResponseTime = Time.unscaledTime;
+        testReceived = false;
         
         // Reset reconnection timer on successful connection
         lastReconnectAttemptTime = 0f;

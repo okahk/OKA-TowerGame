@@ -16,7 +16,7 @@ GameObject:
   - component: {fileID: 1207477609752313028}
   - component: {fileID: 462794051333887390}
   - component: {fileID: 5188320373714885741}
-  m_Layer: 5
+  m_Layer: 6
   m_Name: WIFI-Disconnected
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -264,7 +264,7 @@ GameObject:
   - component: {fileID: 5201394805275086920}
   - component: {fileID: 6050183433861659065}
   - component: {fileID: 1247896924541849686}
-  m_Layer: 5
+  m_Layer: 6
   m_Name: PlayerName
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -363,7 +363,7 @@ GameObject:
   - component: {fileID: 990974538172055763}
   - component: {fileID: 2935794267594871711}
   - component: {fileID: 9035948348252377346}
-  m_Layer: 5
+  m_Layer: 6
   m_Name: Character
   m_TagString: Player
   m_Icon: {fileID: 0}
@@ -523,7 +523,7 @@ GameObject:
   - component: {fileID: 2938723244625146975}
   - component: {fileID: 8916327531999878848}
   - component: {fileID: 3884448596410516168}
-  m_Layer: 5
+  m_Layer: 6
   m_Name: playerTag
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -624,7 +624,7 @@ GameObject:
   - component: {fileID: 9103306553082962192}
   - component: {fileID: 8785179086187499556}
   - component: {fileID: 3379208586346999979}
-  m_Layer: 5
+  m_Layer: 6
   m_Name: Shadow
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -714,7 +714,7 @@ GameObject:
   - component: {fileID: 9042400667606419043}
   - component: {fileID: 5288929600781665025}
   - component: {fileID: 2715728427508167382}
-  m_Layer: 5
+  m_Layer: 6
   m_Name: PlayerNameText
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -855,7 +855,7 @@ GameObject:
   - component: {fileID: 6456974916718360742}
   - component: {fileID: 6445894544025668058}
   - component: {fileID: 6519367918744802742}
-  m_Layer: 5
+  m_Layer: 6
   m_Name: LocalPlayer-Indicator
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -998,7 +998,7 @@ GameObject:
   - component: {fileID: 931727651123689232}
   - component: {fileID: 4563581417507284417}
   - component: {fileID: 1954627154313830201}
-  m_Layer: 5
+  m_Layer: 6
   m_Name: AnswerBubble
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1088,7 +1088,7 @@ GameObject:
   - component: {fileID: 88783074133120887}
   - component: {fileID: 1526487672107984864}
   - component: {fileID: 6192520422191565894}
-  m_Layer: 5
+  m_Layer: 6
   m_Name: image
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1202,7 +1202,7 @@ GameObject:
   - component: {fileID: 1505510296183423013}
   - component: {fileID: 8279894108255905865}
   - component: {fileID: 3245142434439714741}
-  m_Layer: 5
+  m_Layer: 6
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}

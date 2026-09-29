@@ -27,7 +27,9 @@ public class CharacterController : UserData
     public RawImage characterUIImage;
     public float textureAnimationFrameRate = 2f;
     private Vector3 smoothVelocity = Vector3.zero;
+    private Vector3 remoteSmoothVelocity = Vector3.zero;
     private float smoothTime = 0.08f; // tune this to reduce fling; lower = snappier, higher = smoother
+    private const float REMOTE_SMOOTH_TIME = 0.12f;
     private float maxMoveSpeed => followSpeed * (1 / TowerGameController.Instance.clientMapScale); // maximum units per second
     private static PointerEventData s_pointerEventData;
     private static List<RaycastResult> s_raycastResults = new List<RaycastResult>(8);
@@ -372,18 +374,20 @@ public class CharacterController : UserData
     private void FollowLocalDestination()
     {
         float distance = Vector3.Distance(transform.localPosition, this.localDestination);
-
-        if (!this.IsLocalPlayer && distance > 500f)
-        {
-            LogController.Instance.debug("Teleporting player due to large desync: distance=" + distance);
-            transform.localPosition = new Vector3(localDestination.x, localDestination.y, transform.localPosition.z);
-        }
-        else if (distance > 0.02f)
+        if (distance > 0.02f)
         {
             var newFollowSpeed = followSpeed * (1 / TowerGameController.Instance.clientMapScale);
             currectSpeed = Mathf.Min(currectSpeed + acc * Time.deltaTime, newFollowSpeed);
-            transform.localPosition = Vector3.MoveTowards(transform.localPosition, localDestination, currectSpeed * Time.deltaTime);
+            transform.localPosition = Vector3.SmoothDamp(
+                transform.localPosition,
+                localDestination,
+                ref remoteSmoothVelocity,
+                REMOTE_SMOOTH_TIME,
+                currectSpeed,
+                Time.deltaTime);
         }
+        else
+            remoteSmoothVelocity = Vector3.zero;
     }
 
     private void UpdateAnimation()
@@ -431,7 +435,7 @@ public class CharacterController : UserData
             // Animation: only play walking when movement is meaningful or local player is dragging
             if (this.characterAnimation == null) return;
 
-            const float remoteMoveThreshold = 0.02f;
+            const float remoteMoveThreshold = 0.15f;
             bool remoteShouldWalk = (!IsLocalPlayer && this.distance > remoteMoveThreshold);
             bool localShouldWalk = (IsLocalPlayer && isMouseDown && this.isMoving);
             bool shouldWalk = remoteShouldWalk || localShouldWalk;
