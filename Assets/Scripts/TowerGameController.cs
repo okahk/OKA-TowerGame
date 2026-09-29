@@ -557,6 +557,12 @@ public class TowerGameController : GameBaseController
     }
 
     private void showReadyUI(bool show) {
+        var gameData = WS_Client.Instance != null ? WS_Client.Instance.GameData : null;
+        if (show && string.Equals(gameData?.status, "playing", StringComparison.OrdinalIgnoreCase))
+        {
+            show = false;
+        }
+
         SetUI.Set(this.readyUI, show);
         SetUI.Set(this.readyTeamsUI, show);
         this.readyBtn?.SetActive(show);

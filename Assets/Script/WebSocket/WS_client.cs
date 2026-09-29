@@ -483,11 +483,24 @@ public class WS_Client : MonoBehaviour
                     case "roomInfo":
                         Debug.Log("roomInfo : " + jsonString);
                         roomId = message.roomId;
+                        var currentMemberUids = new HashSet<int>();
+                        if (message.content?.members != null)
+                        {
+                            foreach (var member in message.content.members)
+                            {
+                                if (member != null && member.uid > 0)
+                                {
+                                    currentMemberUids.Add(member.uid);
+                                }
+                            }
+                        }
+
                         if (message.content != null && message.content.removed != null)
                         {
                             foreach (var removedPlayer in message.content.removed)
                             {
                                 if (removedPlayer == null || removedPlayer.uid <= 0) continue;
+                                if (currentMemberUids.Contains(removedPlayer.uid)) continue;
 
                                 pendingRemovedUid = removedPlayer.uid;
                                 OnOrderChanged?.Invoke("removePlayer");
