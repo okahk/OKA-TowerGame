@@ -43,6 +43,8 @@ public class WS_Client : MonoBehaviour
     public int pendingAddedUid = -1;
     private bool lastKnownGameWasPlaying;
     public bool LastKnownGameWasPlaying => lastKnownGameWasPlaying;
+    private string roomMemberCacheId = "";
+    private readonly HashSet<int> roomMemberUids = new HashSet<int>();
 
     // New: flag set when server informs same-account connection (another device)
     // Consumers (UI/controllers) can read this to block actions or show UI.
@@ -469,6 +471,10 @@ public class WS_Client : MonoBehaviour
 
                 // 将JSON字符串反序列化为对象
                 WebSocketMessage message = JsonUtility.FromJson<WebSocketMessage>(jsonString);
+                if (message != null)
+                {
+                    lastHeartbeatResponseTime = Time.unscaledTime;
+                }
 
                 string receivedOrder = message.content?.order;
                 Debug.Log("Received order: " + receivedOrder + " | messageType: " + message.messageType + " | roomId: " + message.roomId);
@@ -484,6 +490,12 @@ public class WS_Client : MonoBehaviour
                     case "roomInfo":
                         Debug.Log("roomInfo : " + jsonString);
                         roomId = message.roomId;
+                        if (!string.Equals(roomMemberCacheId, roomId, StringComparison.OrdinalIgnoreCase))
+                        {
+                            roomMemberCacheId = roomId;
+                            roomMemberUids.Clear();
+                        }
+
                         var currentMemberUids = new HashSet<int>();
                         if (message.content?.members != null)
                         {
@@ -503,6 +515,7 @@ public class WS_Client : MonoBehaviour
                                 if (removedPlayer == null || removedPlayer.uid <= 0) continue;
                                 if (currentMemberUids.Contains(removedPlayer.uid)) continue;
 
+                                roomMemberUids.Remove(removedPlayer.uid);
                                 pendingRemovedUid = removedPlayer.uid;
                                 OnOrderChanged?.Invoke("removePlayer");
                             }
@@ -512,6 +525,7 @@ public class WS_Client : MonoBehaviour
                             foreach (var member in message.content.members)
                             {
                                 if (member == null || member.uid <= 0) continue;
+                                if (!roomMemberUids.Add(member.uid)) continue;
 
                                 pendingAddedUid = member.uid;
                                 OnOrderChanged?.Invoke("addPlayer");
@@ -886,6 +900,8 @@ public class WS_Client : MonoBehaviour
             this.roomId = "lobby";
             lastKnownGameWasPlaying = false;
             waitingForReconnectSnapshot = false;
+            roomMemberCacheId = "";
+            roomMemberUids.Clear();
             GameData = null;
         }
 

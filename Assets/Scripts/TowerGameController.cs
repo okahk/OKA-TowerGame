@@ -50,6 +50,7 @@ public class TowerGameController : GameBaseController
     public bool finishLoading = false; // Set to true after costume data and account costume ID are loaded
     private int loadingImagesCount = 0; // Track how many images are currently loading
     private int currentQuestionId = -1;
+    private int lastRestoredGameDataVersion = -1;
     private int pendingLocalAnswerId = -1;
 
     // Map WS player key (string) -> CharacterController (ensures one GameObject per ws player)
@@ -381,6 +382,12 @@ public class TowerGameController : GameBaseController
     // Add this handler method inside TowerGameController
     private void HandleStartCountDownChanged(int newCountDown)
     {
+        var gameData = WS_Client.Instance?.GameData;
+        if (string.Equals(gameData?.status, "playing", StringComparison.OrdinalIgnoreCase))
+        {
+            showReadyUI(false);
+        }
+
         // Use existing method to update UI; it reads WS_Client.Instance.startCountDown internally
         this.controlReadyCountDown(newCountDown);
     }
@@ -426,16 +433,12 @@ public class TowerGameController : GameBaseController
                 if (client == null || client.GameData == null) break;
 
                 int localUid = client.public_UserInfo != null ? client.public_UserInfo.uid : -1;
-
-                if (client.pendingReconnectUid != -1)
+                if (!RestoreActiveGameUI(client) && client.pendingReconnectUid == localUid)
                 {
-                    if (client.pendingReconnectUid == localUid)
-                    {
-                        StartCoroutine(updateQuestionUI(true));
-                        SetUI.Set(this.TopUILayer, true, 0f);
-                    }
-                    client.pendingReconnectUid = -1;
+                    StartCoroutine(updateQuestionUI(true));
+                    SetUI.Set(this.TopUILayer, true, 0f);
                 }
+                client.pendingReconnectUid = -1;
                 break;
             case "startGame":
                 showReadyUI(false);
@@ -535,7 +538,10 @@ public class TowerGameController : GameBaseController
 
             // Immediately sync UI pieces: scores, question, answers, minimap, answer visibility
             StartCoroutine(updateScoreUI());
-            StartCoroutine(updateQuestionUI(true));
+            if (!RestoreActiveGameUI(client))
+            {
+                StartCoroutine(updateQuestionUI(true));
+            }
             checkAnswerVisibility();
 
             // Force an immediate players sync (updates destinations, minimap markers, answer bubbles)
@@ -558,9 +564,50 @@ public class TowerGameController : GameBaseController
         }
     }
 
+    private bool RestoreActiveGameUI(WS_Client client)
+    {
+        if (client?.GameData == null ||
+            !string.Equals(client.GameData.status, "playing", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        int localUid = client.public_UserInfo != null ? client.public_UserInfo.uid : -1;
+        if (localUid < 0 || client.GameData.players == null ||
+            !client.GameData.players.Exists(player => player != null && player.uid == localUid))
+        {
+            return false;
+        }
+
+        SetUI.Set(this.TopUILayer, true, 0f);
+        SetUI.Set(this.GameUILayer, true, 0f);
+        this.playing = true;
+        var onTopCanvasGroup = this.onTopUI != null ? this.onTopUI.GetComponent<CanvasGroup>() : null;
+        if (onTopCanvasGroup != null)
+        {
+            onTopCanvasGroup.alpha = 1f;
+        }
+
+        int questionCount = client.GameData.questions != null ? client.GameData.questions.Count : 0;
+        if (questionCount > 0 && lastRestoredGameDataVersion != client.GameDataSyncVersion)
+        {
+            lastRestoredGameDataVersion = client.GameDataSyncVersion;
+            int round = Math.Clamp(client.GameData.round, 1, questionCount);
+            RoundTitle.Instance?.ShowRoundTitle(round - 1);
+            QuestionController.Instance?.nextQuestion(true);
+            currentQuestionId = round;
+        }
+
+        return true;
+    }
+
     private void showReadyUI(bool show) {
-        var gameData = WS_Client.Instance != null ? WS_Client.Instance.GameData : null;
-        if (show && string.Equals(gameData?.status, "playing", StringComparison.OrdinalIgnoreCase))
+        var client = WS_Client.Instance;
+        bool hasAuthoritativeRoomState = client?.GameData != null;
+        bool gameIsPlaying = client != null &&
+            (client.LastKnownGameWasPlaying ||
+             string.Equals(client.GameData?.status, "playing", StringComparison.OrdinalIgnoreCase));
+        if (show && (!hasAuthoritativeRoomState || gameIsPlaying))
         {
             show = false;
         }
