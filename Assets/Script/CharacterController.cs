@@ -241,11 +241,7 @@ public class CharacterController : UserData
 
                         destData.x = localDestination.x;
                         destData.y = localDestination.y;
-                            const float remoteMoveThreshold = 0.02f;
-                            const float remoteMovementGracePeriod = 0.25f;
-                            bool remoteTargetRecentlyChanged = Time.time - lastRemoteTargetChangeTime <= remoteMovementGracePeriod;
-                            bool remoteShouldWalk = !IsLocalPlayer &&
-                                (this.distance > remoteMoveThreshold || remoteTargetRecentlyChanged);
+                        _ = WS_Client.Instance.UpdateServerPosition(posData, destData);
                     }
                     catch (System.Exception ex)
                     {
@@ -443,8 +439,11 @@ public class CharacterController : UserData
             // Animation: only play walking when movement is meaningful or local player is dragging
             if (this.characterAnimation == null) return;
 
-            const float remoteMoveThreshold = 0.15f;
-            bool remoteShouldWalk = (!IsLocalPlayer && this.distance > remoteMoveThreshold);
+            const float remoteMoveThreshold = 0.02f;
+            const float remoteMovementGracePeriod = 0.25f;
+            bool remoteTargetRecentlyChanged = Time.time - lastRemoteTargetChangeTime <= remoteMovementGracePeriod;
+            bool remoteShouldWalk = !IsLocalPlayer &&
+                (this.distance > remoteMoveThreshold || remoteTargetRecentlyChanged);
             bool localShouldWalk = (IsLocalPlayer && isMouseDown && this.isMoving);
             bool shouldWalk = remoteShouldWalk || localShouldWalk;
 
