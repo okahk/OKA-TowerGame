@@ -9,13 +9,14 @@ public class reconnectRoom : MonoBehaviour
     public int reconnectRoomId;
 
     void Update() {
+        var client = WS_Client.Instance;
         // Check if there's a pending reconnect room ID from WS_Client
-        string _pendingReconnectRoomId = WS_Client.Instance?.pendingReconnectRoomId;
-        if (WS_Client.Instance != null && !string.IsNullOrEmpty(_pendingReconnectRoomId))
+        string _pendingReconnectRoomId = client != null ? client.pendingReconnectRoomId : null;
+        if (client != null && !string.IsNullOrEmpty(_pendingReconnectRoomId))
         {
             //Debug.Log("Pending Reconnect Room ID: " + _pendingReconnectRoomId);
             reconnectRoomId = int.Parse(_pendingReconnectRoomId.Replace("room", ""));
-            this.showReconnectRoomUI(WS_Client.Instance.pendingReconnectRoomId);
+            this.showReconnectRoomUI(_pendingReconnectRoomId);
         }
         else
         {

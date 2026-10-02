@@ -69,11 +69,15 @@ public class WS_Client : MonoBehaviour
     private float lastHeartbeatResponseTime;
     private const float HEARTBEAT_TIMEOUT = 15f;
     private int gameDataSyncVersion;
+    private int pendingReconnectSnapshotVersion = -1;
     private int reconnectSnapshotVersion;
     private bool waitingForReconnectSnapshot;
     private bool pendingLocalRoomJoinSnapshot;
     private string pendingLocalRoomJoinId = "";
+    private string gameDataRoomId = "";
     public int GameDataSyncVersion => gameDataSyncVersion;
+    public int PendingReconnectSnapshotVersion => pendingReconnectSnapshotVersion;
+    public string GameDataRoomId => gameDataRoomId;
     public int ReconnectSnapshotVersion => reconnectSnapshotVersion;
     public bool WaitingForReconnectSnapshot
     {
@@ -484,6 +488,7 @@ public class WS_Client : MonoBehaviour
                     message.messageType == "resetGame" || message.messageType == "endGame")
                 {
                     pendingReconnectRoomId = "";
+                    pendingReconnectSnapshotVersion = -1;
                 }
                 if (receivedOrder == "resetGame" || message.messageType == "resetGame")
                 {
@@ -560,6 +565,8 @@ public class WS_Client : MonoBehaviour
                         //Debug.Log(jsonString);
                         this.GameData = message.content.roomGameData;
                         gameDataSyncVersion++;
+                        string snapshotRoomId = !string.IsNullOrEmpty(message.roomId) ? message.roomId : roomId;
+                        gameDataRoomId = snapshotRoomId;
                         if (message.content.order == "resetGame" || message.messageType == "resetGame")
                         {
                             int playerCount = this.GameData?.players?.Count ?? 0;
@@ -571,9 +578,11 @@ public class WS_Client : MonoBehaviour
                             this.OnStartCountDownChanged?.Invoke(this.GameData.startCountDown);
 
                             if (!string.IsNullOrEmpty(pendingReconnectRoomId) &&
-                                string.Equals(roomId, pendingReconnectRoomId, StringComparison.OrdinalIgnoreCase))
+                                gameDataSyncVersion > pendingReconnectSnapshotVersion &&
+                                string.Equals(snapshotRoomId, pendingReconnectRoomId, StringComparison.OrdinalIgnoreCase))
                             {
                                 pendingReconnectRoomId = "";
+                                pendingReconnectSnapshotVersion = -1;
                             }
                         }
                         //Debug.Log($"SyncRoomData: ready button startCountDown = {this.GameData.startCountDown}");
@@ -658,7 +667,6 @@ public class WS_Client : MonoBehaviour
                             bool localPlayerIsInGame = localUid > 0 &&
                                 this.GameData?.players?.Exists(player => player != null && player.uid == localUid) == true;
                             bool gameIsPlaying = string.Equals(this.GameData?.status, "playing", StringComparison.OrdinalIgnoreCase);
-                            string snapshotRoomId = !string.IsNullOrEmpty(message.roomId) ? message.roomId : roomId;
                             bool isExpectedRoom = string.IsNullOrEmpty(pendingLocalRoomJoinId) ||
                                 string.Equals(snapshotRoomId, pendingLocalRoomJoinId, StringComparison.OrdinalIgnoreCase);
                             if (isExpectedRoom && localPlayerIsInGame)
@@ -693,6 +701,7 @@ public class WS_Client : MonoBehaviour
                     case "inPlayingRoom":
                         Debug.LogWarning("inPlayingRoom : " + jsonString);
                         pendingReconnectRoomId = message.content.roomId;
+                        pendingReconnectSnapshotVersion = gameDataSyncVersion;
                         roomId = pendingReconnectRoomId;
                         break;
                     case "connectionClose":
@@ -893,6 +902,7 @@ public class WS_Client : MonoBehaviour
                     if (reconnectingActiveGame && string.IsNullOrEmpty(pendingReconnectRoomId))
                     {
                         pendingReconnectRoomId = roomId;
+                        pendingReconnectSnapshotVersion = gameDataSyncVersion;
                     }
 
                     reconnectSnapshotVersion = gameDataSyncVersion;
@@ -947,6 +957,7 @@ public class WS_Client : MonoBehaviour
         {
             pendingLocalRoomJoinSnapshot = false;
             pendingLocalRoomJoinId = "";
+            pendingReconnectSnapshotVersion = -1;
             this.roomId = "lobby";
             lastKnownGameWasPlaying = false;
             waitingForReconnectSnapshot = false;
@@ -1099,10 +1110,12 @@ public class WS_Client : MonoBehaviour
         if (lastKnownGameWasPlaying && !string.IsNullOrEmpty(roomId) && roomId != "lobby")
         {
             pendingReconnectRoomId = roomId;
+            pendingReconnectSnapshotVersion = gameDataSyncVersion;
         }
         else
         {
             pendingReconnectRoomId = "";
+            pendingReconnectSnapshotVersion = -1;
         }
 
         GameData = null;
