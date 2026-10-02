@@ -71,6 +71,7 @@ public class WS_Client : MonoBehaviour
     private int gameDataSyncVersion;
     private int reconnectSnapshotVersion;
     private bool waitingForReconnectSnapshot;
+    private bool pendingLocalRoomJoinSnapshot;
     public int GameDataSyncVersion => gameDataSyncVersion;
     public int ReconnectSnapshotVersion => reconnectSnapshotVersion;
     public bool WaitingForReconnectSnapshot
@@ -649,6 +650,26 @@ public class WS_Client : MonoBehaviour
                             waitingForReconnectSnapshot = false;
                             OnOrderChanged?.Invoke("reconnected");
                         }
+
+                        if (pendingLocalRoomJoinSnapshot)
+                        {
+                            pendingLocalRoomJoinSnapshot = false;
+                            int localUid = public_UserInfo != null ? public_UserInfo.uid : -1;
+                            bool localPlayerIsInGame = localUid > 0 &&
+                                this.GameData?.players?.Exists(player => player != null && player.uid == localUid) == true;
+                            bool gameIsPlaying = string.Equals(this.GameData?.status, "playing", StringComparison.OrdinalIgnoreCase);
+                            if (localPlayerIsInGame && gameIsPlaying)
+                            {
+                                if (OnOrderChanged == null)
+                                {
+                                    pendingOrder = "localRoomJoined";
+                                }
+                                else
+                                {
+                                    OnOrderChanged.Invoke("localRoomJoined");
+                                }
+                            }
+                        }
       
                         gameDataReceived = true;
                         break;
@@ -914,6 +935,7 @@ public class WS_Client : MonoBehaviour
     {
         Debug.Log("JoinGameRoom: " + roomId);
         pendingReconnectRoomId = "";
+        pendingLocalRoomJoinSnapshot = false;
         if (roomId == 0)
         {
             this.roomId = "lobby";
@@ -934,6 +956,7 @@ public class WS_Client : MonoBehaviour
         {
             lastJoinTime = Time.time;
             isJoining = true;
+            pendingLocalRoomJoinSnapshot = roomId != 0;
             _ = JoinRoomAsync(roomId);
         }
     }

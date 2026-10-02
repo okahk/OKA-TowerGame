@@ -425,24 +425,37 @@ public class TowerGameController : GameBaseController
                 }
             break;
             case "reconnectPlayer":
-                StartCoroutine(updateScoreUI());
-                showReadyUI(false);
-                checkAnswerVisibility();
-
                 var client = WS_Client.Instance;
                 if (client == null || client.GameData == null) break;
-                if (client.pendingReconnectUid > 0)
+                int reconnectUid = client.pendingReconnectUid;
+                if (reconnectUid > 0)
                 {
-                    MarkPlayerConnected(client.pendingReconnectUid);
+                    MarkPlayerConnected(reconnectUid);
                 }
 
                 int localUid = client.public_UserInfo != null ? client.public_UserInfo.uid : -1;
-                if (!RestoreActiveGameUI(client) && client.pendingReconnectUid == localUid)
+                if (reconnectUid > 0 && localUid > 0 && reconnectUid == localUid)
                 {
-                    StartCoroutine(updateQuestionUI(true));
-                    SetUI.Set(this.TopUILayer, true, 0f);
+                    StartCoroutine(updateScoreUI());
+                    showReadyUI(false);
+                    checkAnswerVisibility();
+
+                    if (!RestoreActiveGameUI(client))
+                    {
+                        StartCoroutine(updateQuestionUI(true));
+                        SetUI.Set(this.TopUILayer, true, 0f);
+                    }
                 }
                 client.pendingReconnectUid = -1;
+                break;
+            case "localRoomJoined":
+                var joinedClient = WS_Client.Instance;
+                if (joinedClient != null && RestoreActiveGameUI(joinedClient))
+                {
+                    StartCoroutine(updateScoreUI());
+                    showReadyUI(false);
+                    checkAnswerVisibility();
+                }
                 break;
             case "startGame":
                 showReadyUI(false);
@@ -858,7 +871,10 @@ public class TowerGameController : GameBaseController
             {
                 string key = !string.IsNullOrEmpty(player.player_id) ? player.player_id : player.uid.ToString();
 
-                if(!string.IsNullOrEmpty(player.answerContent)) this.correctAnswerText.text = player.answerContent;
+                if (!this.showingPopup && !string.IsNullOrEmpty(player.answerContent))
+                {
+                    this.correctAnswerText.text = player.answerContent;
+                }
 
                 bool isLocal = (player.uid == localUid);
                 if (!playerControllersByKey.ContainsKey(key))
