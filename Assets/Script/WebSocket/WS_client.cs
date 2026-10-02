@@ -483,6 +483,10 @@ public class WS_Client : MonoBehaviour
                 {
                     pendingReconnectRoomId = "";
                 }
+                if (receivedOrder == "resetGame" || message.messageType == "resetGame")
+                {
+                    Debug.Log($"[WS resetGame] Response received. messageType={message.messageType}, order={receivedOrder}, roomId={message.roomId}");
+                }
 
                 // 现在可以安全地访问messageType属性
                 switch (message.messageType)
@@ -535,6 +539,16 @@ public class WS_Client : MonoBehaviour
                     case "listGameRoom":
                         Debug.Log("listGameRoom : " + jsonString);
                         RoomList = message.content.roomList;
+                        if (RoomList != null)
+                        {
+                            foreach (var room in RoomList)
+                            {
+                                if (room != null)
+                                {
+                                    Debug.Log($"[WS roomList] roomId={room.roomId}, roomMembers={room.roomMembers}, roomPlayers={room.roomPlayers}, roomStatus={room.roomStatus}");
+                                }
+                            }
+                        }
                         break;
                     case "roomFull":
                         Debug.Log("roomFull : " + jsonString);
@@ -544,6 +558,11 @@ public class WS_Client : MonoBehaviour
                         //Debug.Log(jsonString);
                         this.GameData = message.content.roomGameData;
                         gameDataSyncVersion++;
+                        if (message.content.order == "resetGame" || message.messageType == "resetGame")
+                        {
+                            int playerCount = this.GameData?.players?.Count ?? 0;
+                            Debug.Log($"[WS resetGame] Updated game data. roomId={message.roomId}, status={this.GameData?.status ?? "null"}, players={playerCount}");
+                        }
                         if (this.GameData != null)
                         {
                             lastKnownGameWasPlaying = string.Equals(this.GameData.status, "playing", StringComparison.OrdinalIgnoreCase);
@@ -1347,11 +1366,20 @@ public class WS_Client : MonoBehaviour
         _ = sendAction("nextRound");
         return Task.CompletedTask;
     }
-    public Task resetGame()
+    public async Task resetGame()
     {
+        string socketState = websocket != null ? websocket.State.ToString() : "null";
+        Debug.Log($"[WS resetGame] Requested. socketState={socketState}, roomId={roomId}");
         pendingReconnectRoomId = "";
-        _ = sendAction("resetGame");
-        return Task.CompletedTask;
+        try
+        {
+            await sendAction("resetGame");
+            Debug.Log("[WS resetGame] Send completed.");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[WS resetGame] Send failed: {ex.Message}");
+        }
     }
 
     private void SetLocalReady(bool ready)

@@ -37,6 +37,7 @@ public class roomListController : MonoBehaviour
         {
             if (WS_Client.Instance.RoomList != null)
             {
+                //roomNoText.text = "Room " + roomId.ToString() + "---" + room.roomStatus;
                 if (room == null)
                 {
                     playerNoText.text = "<color=#FF000000>0</color>/6";

@@ -431,6 +431,10 @@ public class TowerGameController : GameBaseController
 
                 var client = WS_Client.Instance;
                 if (client == null || client.GameData == null) break;
+                if (client.pendingReconnectUid > 0)
+                {
+                    MarkPlayerConnected(client.pendingReconnectUid);
+                }
 
                 int localUid = client.public_UserInfo != null ? client.public_UserInfo.uid : -1;
                 if (!RestoreActiveGameUI(client) && client.pendingReconnectUid == localUid)
@@ -1414,7 +1418,6 @@ public class TowerGameController : GameBaseController
                 // Ensure created controller correct identity (defensive)
                 if (playerControllersByKey.TryGetValue(key, out var created) && created != null)
                 {
-                    disconnectedPlayerKeys.Remove(key);
                     created.UserId = p.uid;
                     created.UserName = p.ename ?? ("Player_" + p.uid);
                     created.detectCamera = this.trackingCamera;
@@ -1566,8 +1569,9 @@ public class TowerGameController : GameBaseController
         // Scoreboard visibility must not depend on costume parsing succeeding.
         if (matchingScoreboard != null)
         {
-            disconnectedPlayerKeys.Remove(key);
             matchingScoreboard.setScoreboard(key, scoreboardIcon, player.ename);
+            matchingScoreboard.setDisconnected(disconnectedPlayerKeys.Contains(key));
+            characterController.SetWifiDisconnected(disconnectedPlayerKeys.Contains(key));
         }
 
             // keep an incremental id for legacy naming if needed
