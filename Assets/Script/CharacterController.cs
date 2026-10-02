@@ -29,6 +29,7 @@ public class CharacterController : UserData
     private Vector3 smoothVelocity = Vector3.zero;
     private Vector3 remoteSmoothVelocity = Vector3.zero;
     private float smoothTime = 0.08f; // tune this to reduce fling; lower = snappier, higher = smoother
+    private float lastRemoteTargetChangeTime = float.NegativeInfinity;
     private const float REMOTE_SMOOTH_TIME = 0.12f;
     private float maxMoveSpeed => followSpeed * (1 / TowerGameController.Instance.clientMapScale); // maximum units per second
     private static PointerEventData s_pointerEventData;
@@ -240,8 +241,11 @@ public class CharacterController : UserData
 
                         destData.x = localDestination.x;
                         destData.y = localDestination.y;
-
-                        _ = WS_Client.Instance.UpdateServerPosition(posData, destData);
+                            const float remoteMoveThreshold = 0.02f;
+                            const float remoteMovementGracePeriod = 0.25f;
+                            bool remoteTargetRecentlyChanged = Time.time - lastRemoteTargetChangeTime <= remoteMovementGracePeriod;
+                            bool remoteShouldWalk = !IsLocalPlayer &&
+                                (this.distance > remoteMoveThreshold || remoteTargetRecentlyChanged);
                     }
                     catch (System.Exception ex)
                     {
@@ -368,6 +372,10 @@ public class CharacterController : UserData
 
     public void setLocalDestination(Vector3 destination)
     {
+        if (!IsLocalPlayer && (destination - localDestination).sqrMagnitude > 0.000001f)
+        {
+            lastRemoteTargetChangeTime = Time.time;
+        }
         localDestination = destination;
     }
 

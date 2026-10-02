@@ -1554,6 +1554,7 @@ public class TowerGameController : GameBaseController
         characterController.key = key;
 
         Texture2D scoreboardIcon = null;
+        CharacterSet animationSet = null;
 
         // Safely parse and access costume with bounds checking
         if (!string.IsNullOrEmpty(player.costume_id) && int.TryParse(player.costume_id, out int costumeId))
@@ -1566,7 +1567,7 @@ public class TowerGameController : GameBaseController
                 var characterSet = this.characterSets[arrayIndex];
                 if (characterSet.walkingAnimationTextures != null && characterSet.walkingAnimationTextures.Length > 0)
                 {
-                    characterController.SetCostumeTextures(characterSet);
+                    animationSet = characterSet;
                 }
 
                 scoreboardIcon = characterSet.defaultIcon as Texture2D;
@@ -1580,6 +1581,28 @@ public class TowerGameController : GameBaseController
         else
         {
             LogController.Instance.debug($"Player {player.uid} has invalid or empty costume_id: {player.costume_id}");
+        }
+
+        if (animationSet == null && this.characterSets != null)
+        {
+            foreach (var fallbackSet in this.characterSets)
+            {
+                if (fallbackSet != null && fallbackSet.walkingAnimationTextures != null &&
+                    fallbackSet.walkingAnimationTextures.Length > 0)
+                {
+                    animationSet = fallbackSet;
+                    break;
+                }
+            }
+        }
+
+        if (animationSet != null)
+        {
+            characterController.SetCostumeTextures(animationSet);
+        }
+        else
+        {
+            LogController.Instance.debugError($"No walking animation set available for player {player.uid} (costume_id={player.costume_id})");
         }
 
         // Scoreboard visibility must not depend on costume parsing succeeding.
